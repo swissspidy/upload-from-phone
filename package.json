@@ -58,6 +58,6 @@
 		"@wordpress/media-utils": "^5.53.0",
 		"@wordpress/notices": "^5.53.0",
 		"@wordpress/scripts": "^34.1.0",
-		"typescript": "^5.9.0"
+		"typescript": "^7.0.2"
 	}
 }
