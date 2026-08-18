@@ -80,19 +80,7 @@ test.describe( 'Upload from phone', () => {
 		} );
 		const uploadUrl = await modal.getByLabel( 'Upload link' ).inputValue();
 
-		// The app fires this DELETE without awaiting it — closing the modal
-		// doesn't wait for the server to catch up, so neither should this
-		// test rely on that timing. Wait for the response itself instead.
-		const revoked = page.waitForResponse(
-			( response ) =>
-				response.request().method() === 'DELETE' &&
-				response
-					.url()
-					.includes( '/upload-from-phone/v1/upload-requests/' )
-		);
-
 		await modal.getByRole( 'button', { name: 'Cancel' } ).click();
-		await revoked;
 		await expect( modal ).toBeHidden();
 
 		/*
@@ -104,8 +92,21 @@ test.describe( 'Upload from phone', () => {
 		 * falls through to a genuine, theme-rendered 404. Assert on the
 		 * status code precisely because of that: it's the one thing common to
 		 * both codepaths, and the one a visitor's browser can't be tricked by.
+		 *
+		 * The click above doesn't wait for the DELETE request to land before
+		 * closing the modal (by design — see cancel() in
+		 * use-upload-request.ts), so this polls rather than asserting on a
+		 * single navigation: the first attempt may still catch the request
+		 * mid-flight.
 		 */
-		const response = await secondPage.goto( uploadUrl );
-		expect( response?.status() ).toBe( 404 );
+		await expect
+			.poll(
+				async () => {
+					const response = await secondPage.goto( uploadUrl );
+					return response?.status();
+				},
+				{ timeout: 10_000 }
+			)
+			.toBe( 404 );
 	} );
 } );
