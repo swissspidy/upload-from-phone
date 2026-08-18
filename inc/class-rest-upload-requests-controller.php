@@ -125,10 +125,16 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 					'callback'            => [ $this, 'upload_item' ],
 					'permission_callback' => [ $this, 'upload_item_permissions_check' ],
 					'args'                => [
+						/*
+						 * Deliberately not `required`. WordPress validates required
+						 * parameters in the dispatcher, before any permission
+						 * callback runs, and on a public endpoint the token should
+						 * be the first thing checked. A missing name is caught in
+						 * the callback instead.
+						 */
 						'filename' => [
 							'description' => __( 'Name of the file being uploaded.', 'upload-from-phone' ),
 							'type'        => 'string',
-							'required'    => true,
 						],
 					],
 				],
@@ -309,7 +315,9 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 			);
 		}
 
-		$body = $request->get_body();
+		// Cast: an empty body reaches us as null, not an empty string, and the
+		// size check below is strict about its argument.
+		$body = (string) $request->get_body();
 
 		if ( '' === $body ) {
 			return new WP_Error(

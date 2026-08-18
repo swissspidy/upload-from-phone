@@ -27,12 +27,18 @@
 		</properties>
 	</rule>
 
-	<rule ref="PSR1.Files.SideEffects.FoundWithSymbols">
-		<exclude-pattern>upload-from-phone.php</exclude-pattern>
-	</rule>
-
 	<rule ref="WordPress.Files.FileName">
 		<exclude-pattern>tests/*</exclude-pattern>
+	</rule>
+
+	<!--
+		Every file that declares something also carries the mandatory
+		`if ( ! defined( 'ABSPATH' ) ) { exit; }` guard, which PSR1 counts as a
+		side effect. The guard is expected of plugins in the directory, so the
+		rule loses to the platform convention. The rest of PSR1 still applies.
+	-->
+	<rule ref="PSR1.Files.SideEffects">
+		<exclude name="PSR1.Files.SideEffects.FoundWithSymbols"/>
 	</rule>
 
 	<!-- We only support the latest major WordPress release. -->
@@ -47,10 +53,8 @@
 	<arg name="parallel" value="8"/>
 	<file>.</file>
 
-	<!-- File Layout: Declare symbols or run code, but not both. -->
-	<rule ref="PSR1.Files.SideEffects" />
-
 	<!-- Test for PHP 8.0+ compatibility. -->
+	<rule ref="PHPCompatibilityWP" />
 	<config name="testVersion" value="8.0-"/>
 
 	<exclude-pattern>*/build/*</exclude-pattern>

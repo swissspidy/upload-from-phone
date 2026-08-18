@@ -216,9 +216,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 	public function test_uploading_with_an_unknown_token_is_refused(): void {
 		wp_set_current_user( 0 );
 
-		$response = rest_get_server()->dispatch(
-			new WP_REST_Request( 'POST', self::ROUTE . '/' . str_repeat( 'b', 32 ) . '/media' )
-		);
+		$response = $this->upload_test_image( str_repeat( 'b', 32 ) );
 
 		$this->assertErrorResponse( 'upload_from_phone_invalid_token', $response, 404 );
 	}
@@ -240,9 +238,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 
 		wp_set_current_user( 0 );
 
-		$response = rest_get_server()->dispatch(
-			new WP_REST_Request( 'POST', self::ROUTE . '/' . $upload_request->get_token() . '/media' )
-		);
+		$response = $this->upload_test_image( $upload_request->get_token() );
 
 		$this->assertErrorResponse( 'upload_from_phone_invalid_token', $response, 404 );
 	}
@@ -259,9 +255,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 
 		wp_set_current_user( 0 );
 
-		$response = rest_get_server()->dispatch(
-			new WP_REST_Request( 'POST', self::ROUTE . '/' . $upload_request->get_token() . '/media' )
-		);
+		$response = $this->upload_test_image( $upload_request->get_token() );
 
 		$this->assertErrorResponse( 'upload_from_phone_request_complete', $response, 409 );
 	}
@@ -283,9 +277,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 
 		wp_set_current_user( 0 );
 
-		$response = rest_get_server()->dispatch(
-			new WP_REST_Request( 'POST', self::ROUTE . '/' . $upload_request->get_token() . '/media' )
-		);
+		$response = $this->upload_test_image( $upload_request->get_token() );
 
 		$this->assertErrorResponse( 'upload_from_phone_cannot_upload', $response, 403 );
 
@@ -329,7 +321,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 
 		$response = rest_get_server()->dispatch( $request );
 
-		$this->assertErrorResponse( 'rest_missing_callback_param', $response, 400 );
+		$this->assertErrorResponse( 'upload_from_phone_no_filename', $response, 400 );
 	}
 
 	/**
