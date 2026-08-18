@@ -1,45 +1,71 @@
 <?xml version="1.0"?>
-<ruleset name="Upload from Phone">
-	<description>Coding standards for the Upload from Phone plugin.</description>
+<ruleset name="WordPress Coding Standards for Upload from Phone">
+	<description>A custom set of code standard rules for Upload from Phone.</description>
 
-	<file>.</file>
+	<rule ref="WordPress-Core">
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax" />
+	</rule>
 
-	<exclude-pattern>/build/*</exclude-pattern>
-	<exclude-pattern>/node_modules/*</exclude-pattern>
-	<exclude-pattern>/vendor/*</exclude-pattern>
-
-	<arg value="sp"/>
-	<arg name="basepath" value="."/>
-	<arg name="colors"/>
-	<arg name="extensions" value="php"/>
-	<arg name="parallel" value="8"/>
-
-	<rule ref="WordPress">
-		<!-- Namespaced functions are prefixed by their namespace. -->
-		<exclude name="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound"/>
-		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+	<rule ref="WordPress-Docs">
+		<exclude-pattern>*/tests/*</exclude-pattern>
 	</rule>
 
 	<rule ref="WordPress.WP.I18n">
 		<properties>
-			<property name="text_domain" type="array" value="upload-from-phone"/>
+			<property name="text_domain" value="upload-from-phone" />
 		</properties>
 	</rule>
 
+	<!-- Make sure we prefix everything in the global namespace. -->
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
 		<properties>
 			<property name="prefixes" type="array">
+				<element value="ufph"/>
 				<element value="UploadFromPhone"/>
 				<element value="upload_from_phone"/>
-				<element value="ufp"/>
 			</property>
 		</properties>
 	</rule>
 
-	<rule ref="WordPress.WP.CapitalPDangit">
-		<exclude-pattern>/tests/*</exclude-pattern>
+	<rule ref="WordPress.Files.FileName">
+		<exclude-pattern>tests/*</exclude-pattern>
 	</rule>
 
-	<config name="minimum_wp_version" value="6.8"/>
+	<!--
+		Every file that declares something also carries the mandatory
+		`if ( ! defined( 'ABSPATH' ) ) { exit; }` guard, which PSR1 counts as a
+		side effect. The guard is expected of plugins in the directory, so the
+		rule loses to the platform convention. The rest of PSR1 still applies.
+	-->
+	<rule ref="PSR1.Files.SideEffects">
+		<exclude name="PSR1.Files.SideEffects.FoundWithSymbols"/>
+	</rule>
+
+	<!-- We only support the latest major WordPress release. -->
+	<config name="minimum_wp_version" value="6.8" />
+	<rule ref="WordPress.WP.DeprecatedFunctions" />
+
+	<!--
+		Listed one by one rather than as a bare `.`, which was quietly scanning
+		the plugin's own PHP and nothing else.
+	-->
+	<arg name="extensions" value="php"/>
+	<arg value="sp"/>
+	<arg name="basepath" value="."/>
+	<arg name="colors"/>
+	<arg name="parallel" value="8"/>
+	<file>upload-from-phone.php</file>
+	<file>inc</file>
+	<file>templates</file>
+	<file>tests</file>
+
+	<!-- Test for PHP 8.0+ compatibility. -->
+	<rule ref="PHPCompatibilityWP" />
 	<config name="testVersion" value="8.0-"/>
+
+	<exclude-pattern>*/build/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<!-- Bootstraps set up globals for a test runner; the usual rules do not apply. -->
+	<exclude-pattern>*/bootstrap.php</exclude-pattern>
 </ruleset>

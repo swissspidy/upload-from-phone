@@ -17,7 +17,7 @@ use function UploadFromPhone\filter_cron_schedules;
 use function UploadFromPhone\get_upload_page_data;
 
 /**
- * @coversDefaultClass \UploadFromPhone
+ * Tests for the plugin's functions.
  */
 class Test_Functions extends WP_UnitTestCase {
 	/**
@@ -26,6 +26,13 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @var int
 	 */
 	protected static int $admin_id;
+
+	/**
+	 * Whether the client-side processing path needs tearing down.
+	 *
+	 * @var bool
+	 */
+	private bool $reset_client_side_processing = false;
 
 	/**
 	 * Sets up shared fixtures.
@@ -126,11 +133,30 @@ class Test_Functions extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The mime type list is only there for the client-side processing queue, so
+	 * a page that is not running that queue has no reason to be handed one.
+	 *
+	 * @covers \UploadFromPhone\get_upload_page_data
+	 */
+	public function test_upload_page_data_omits_mime_types_by_default(): void {
+		$upload_request = Upload_Request::create( [ 'allowed_types' => [ 'image' ] ] );
+		$this->assertInstanceOf( Upload_Request::class, $upload_request );
+
+		$data = get_upload_page_data( $upload_request );
+
+		$this->assertNull( $data['allowedMimeTypes'] );
+		$this->assertSame( [ 'image' ], $data['allowedTypes'] );
+		$this->assertStringContainsString( $upload_request->get_token(), $data['restUrl'] );
+	}
+
+	/**
 	 * The upload page must not offer file types the request does not accept.
 	 *
 	 * @covers \UploadFromPhone\get_upload_page_data
 	 */
 	public function test_upload_page_data_is_limited_to_the_allowed_types(): void {
+		$this->enable_client_side_processing();
+
 		$upload_request = Upload_Request::create( [ 'allowed_types' => [ 'image' ] ] );
 		$this->assertInstanceOf( Upload_Request::class, $upload_request );
 
@@ -141,20 +167,51 @@ class Test_Functions extends WP_UnitTestCase {
 		foreach ( $data['allowedMimeTypes'] as $mime_type ) {
 			$this->assertStringStartsWith( 'image/', $mime_type );
 		}
-
-		$this->assertSame( [ 'image' ], $data['allowedTypes'] );
-		$this->assertStringContainsString( $upload_request->get_token(), $data['restUrl'] );
 	}
 
 	/**
 	 * @covers \UploadFromPhone\get_upload_page_data
 	 */
 	public function test_upload_page_data_allows_everything_when_unrestricted(): void {
+		$this->enable_client_side_processing();
+
 		$upload_request = Upload_Request::create( [] );
 		$this->assertInstanceOf( Upload_Request::class, $upload_request );
 
 		$data = get_upload_page_data( $upload_request );
 
 		$this->assertSame( get_allowed_mime_types( self::$admin_id ), $data['allowedMimeTypes'] );
+	}
+
+	/**
+	 * Turns on the client-side processing path for the duration of a test.
+	 *
+	 * The filter alone is not enough: the queue is only used where WordPress
+	 * actually registers it, which a bare test install does not.
+	 *
+	 * @return void
+	 */
+	private function enable_client_side_processing(): void {
+		wp_register_script( 'wp-upload-media', 'https://example.org/upload-media.js', [], '1.0', true );
+
+		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+
+		$this->reset_client_side_processing = true;
+	}
+
+	/**
+	 * Tears down each test.
+	 *
+	 * @return void
+	 */
+	public function tear_down(): void {
+		if ( $this->reset_client_side_processing ) {
+			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+			wp_deregister_script( 'wp-upload-media' );
+
+			$this->reset_client_side_processing = false;
+		}
+
+		parent::tear_down();
 	}
 }

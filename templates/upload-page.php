@@ -19,41 +19,41 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-$ufp_post = get_post();
+$ufph_post = get_post();
 
-if ( ! $ufp_post instanceof WP_Post ) {
+if ( ! $ufph_post instanceof WP_Post ) {
 	exit;
 }
 
-$ufp_request = Upload_Request::from_post( $ufp_post );
+$ufph_request = Upload_Request::from_post( $ufph_post );
 
-if ( ! $ufp_request instanceof Upload_Request ) {
+if ( ! $ufph_request instanceof Upload_Request ) {
 	exit;
 }
 
-$ufp_expired = $ufp_request->is_expired() || $ufp_request->is_complete();
+$ufph_expired = $ufph_request->is_expired() || $ufph_request->is_complete();
 
-$ufp_author      = get_userdata( $ufp_request->get_author_id() );
-$ufp_author_name = $ufp_author ? $ufp_author->display_name : '';
+$ufph_author      = get_userdata( $ufph_request->get_author_id() );
+$ufph_author_name = $ufph_author ? $ufph_author->display_name : '';
 
-$ufp_parent = $ufp_request->get_parent();
+$ufph_parent = $ufph_request->get_parent();
 
 // Only name the post if the visitor would be allowed to see it anyway.
-$ufp_parent_visible = $ufp_parent instanceof WP_Post
-	&& ( is_post_publicly_viewable( $ufp_parent ) || current_user_can( 'read_post', $ufp_parent->ID ) );
+$ufph_parent_visible = $ufph_parent instanceof WP_Post
+	&& ( is_post_publicly_viewable( $ufph_parent ) || current_user_can( 'read_post', $ufph_parent->ID ) );
 
-$ufp_parent_title = $ufp_parent_visible ? get_the_title( $ufp_parent ) : '';
+$ufph_parent_title = $ufph_parent_visible ? get_the_title( $ufph_parent ) : '';
 
-if ( $ufp_parent_visible && '' === $ufp_parent_title ) {
-	$ufp_parent_title = __( '(no title)', 'upload-from-phone' );
+if ( $ufph_parent_visible && '' === $ufph_parent_title ) {
+	$ufph_parent_title = __( '(no title)', 'upload-from-phone' );
 }
 
-if ( ! $ufp_expired ) {
+if ( ! $ufph_expired ) {
 	wp_add_inline_script(
 		'upload-from-phone-view',
 		sprintf(
 			'window.uploadFromPhone = %s;',
-			wp_json_encode( get_upload_page_data( $ufp_request ) )
+			wp_json_encode( get_upload_page_data( $ufph_request ) )
 		),
 		'before'
 	);
@@ -67,7 +67,7 @@ if ( ! $ufp_expired ) {
 	<meta name="robots" content="noindex, nofollow">
 	<title><?php esc_html_e( 'Upload media', 'upload-from-phone' ); ?></title>
 	<?php
-	if ( ! $ufp_expired ) {
+	if ( ! $ufph_expired ) {
 		print_upload_page_assets();
 	}
 	?>
@@ -78,7 +78,7 @@ if ( ! $ufp_expired ) {
 <main class="upload-from-phone__wrap">
 	<h1 class="upload-from-phone__title"><?php echo esc_html( get_bloginfo( 'name' ) ); ?></h1>
 
-	<?php if ( $ufp_expired ) : ?>
+	<?php if ( $ufph_expired ) : ?>
 
 		<div class="upload-from-phone__panel">
 			<p class="upload-from-phone__lead">
@@ -94,18 +94,18 @@ if ( ! $ufp_expired ) {
 		<div class="upload-from-phone__panel">
 			<p class="upload-from-phone__lead">
 				<?php
-				if ( '' !== $ufp_parent_title ) {
+				if ( '' !== $ufph_parent_title ) {
 					printf(
 						/* translators: 1: Name of the person who created the upload link. 2: Post title. */
 						esc_html__( '%1$s would like you to add media to “%2$s”.', 'upload-from-phone' ),
-						esc_html( $ufp_author_name ),
-						esc_html( $ufp_parent_title )
+						esc_html( $ufph_author_name ),
+						esc_html( $ufph_parent_title )
 					);
 				} else {
 					printf(
 						/* translators: %s: Name of the person who created the upload link. */
 						esc_html__( '%s would like you to add media to their site.', 'upload-from-phone' ),
-						esc_html( $ufp_author_name )
+						esc_html( $ufph_author_name )
 					);
 				}
 				?>

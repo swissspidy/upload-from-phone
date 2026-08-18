@@ -63,6 +63,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 	public function set_up(): void {
 		parent::set_up();
 
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Firing a core hook, not declaring one.
 		do_action( 'rest_api_init' );
 	}
 
@@ -215,9 +216,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 	public function test_uploading_with_an_unknown_token_is_refused(): void {
 		wp_set_current_user( 0 );
 
-		$response = rest_get_server()->dispatch(
-			new WP_REST_Request( 'POST', self::ROUTE . '/' . str_repeat( 'b', 32 ) . '/media' )
-		);
+		$response = $this->upload_test_image( str_repeat( 'b', 32 ) );
 
 		$this->assertErrorResponse( 'upload_from_phone_invalid_token', $response, 404 );
 	}
@@ -239,9 +238,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 
 		wp_set_current_user( 0 );
 
-		$response = rest_get_server()->dispatch(
-			new WP_REST_Request( 'POST', self::ROUTE . '/' . $upload_request->get_token() . '/media' )
-		);
+		$response = $this->upload_test_image( $upload_request->get_token() );
 
 		$this->assertErrorResponse( 'upload_from_phone_invalid_token', $response, 404 );
 	}
@@ -258,9 +255,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 
 		wp_set_current_user( 0 );
 
-		$response = rest_get_server()->dispatch(
-			new WP_REST_Request( 'POST', self::ROUTE . '/' . $upload_request->get_token() . '/media' )
-		);
+		$response = $this->upload_test_image( $upload_request->get_token() );
 
 		$this->assertErrorResponse( 'upload_from_phone_request_complete', $response, 409 );
 	}
@@ -282,9 +277,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 
 		wp_set_current_user( 0 );
 
-		$response = rest_get_server()->dispatch(
-			new WP_REST_Request( 'POST', self::ROUTE . '/' . $upload_request->get_token() . '/media' )
-		);
+		$response = $this->upload_test_image( $upload_request->get_token() );
 
 		$this->assertErrorResponse( 'upload_from_phone_cannot_upload', $response, 403 );
 
@@ -328,7 +321,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 
 		$response = rest_get_server()->dispatch( $request );
 
-		$this->assertErrorResponse( 'rest_missing_callback_param', $response, 400 );
+		$this->assertErrorResponse( 'upload_from_phone_no_filename', $response, 400 );
 	}
 
 	/**
@@ -412,6 +405,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 		$request = new WP_REST_Request( 'POST', self::ROUTE . '/' . $token . '/media' );
 		$request->set_param( 'filename', $filename );
 		$request->set_header( 'content_type', 'image/jpeg' );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading a fixture off local disk.
 		$request->set_body( file_get_contents( DIR_TESTDATA . '/images/canola.jpg' ) );
 
 		return rest_get_server()->dispatch( $request );

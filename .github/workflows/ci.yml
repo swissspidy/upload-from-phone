@@ -82,9 +82,12 @@ jobs:
       - uses: ramsey/composer-install@v3
 
       - name: Start WordPress
-        run: npm run env start
+        run: ./node_modules/.bin/wp-env start
         env:
           WP_ENV_CORE: ${{ matrix.wordpress == 'latest' && 'WordPress/WordPress' || format('WordPress/WordPress#{0}', matrix.wordpress) }}
 
+      # Run wp-env directly: `npm run` swallows `--env-cwd` as an npm config
+      # flag, so the plugin directory never reaches wp-env and PHPUnit is
+      # looked for in the WordPress root instead.
       - name: Run tests
-        run: npm run env run tests-cli --env-cwd=wp-content/plugins/upload-from-phone -- vendor/bin/phpunit
+        run: ./node_modules/.bin/wp-env run tests-cli --env-cwd=wp-content/plugins/upload-from-phone vendor/bin/phpunit
