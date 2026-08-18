@@ -15,9 +15,9 @@ jobs:
     name: JavaScript
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -36,7 +36,7 @@ jobs:
     name: PHP
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: shivammathur/setup-php@v2
         with:
@@ -44,7 +44,7 @@ jobs:
           coverage: none
           tools: composer
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
 
       - run: composer lint
 
@@ -62,9 +62,9 @@ jobs:
           - php: '8.3'
             wordpress: 'latest'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -79,7 +79,7 @@ jobs:
 
       - run: npm run build
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
 
       # Coverage only on one leg — it roughly doubles the run (Xdebug slows
       # PHPUnit down a lot), and one upload per push is all codecov needs.
