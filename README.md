@@ -1,5 +1,6 @@
 # Upload from Phone
 
+[![Code Coverage](https://codecov.io/gh/swissspidy/upload-from-phone/branch/main/graph/badge.svg)](https://codecov.io/gh/swissspidy/upload-from-phone)
 [![License](https://img.shields.io/github/license/swissspidy/upload-from-phone)](https://github.com/swissspidy/upload-from-phone/blob/main/LICENSE)
 
 Upload photos and videos into a post straight from your phone. Scan a QR code, pick your files, done — no app, and no login on the phone.
