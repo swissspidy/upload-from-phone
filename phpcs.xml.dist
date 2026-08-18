@@ -45,13 +45,19 @@
 	<config name="minimum_wp_version" value="6.8" />
 	<rule ref="WordPress.WP.DeprecatedFunctions" />
 
-	<!-- Check all PHP files in directory tree by default. -->
+	<!--
+		Listed one by one rather than as a bare `.`, which was quietly scanning
+		the plugin's own PHP and nothing else.
+	-->
 	<arg name="extensions" value="php"/>
 	<arg value="sp"/>
 	<arg name="basepath" value="."/>
 	<arg name="colors"/>
 	<arg name="parallel" value="8"/>
-	<file>.</file>
+	<file>upload-from-phone.php</file>
+	<file>inc</file>
+	<file>templates</file>
+	<file>tests</file>
 
 	<!-- Test for PHP 8.0+ compatibility. -->
 	<rule ref="PHPCompatibilityWP" />
@@ -60,6 +66,6 @@
 	<exclude-pattern>*/build/*</exclude-pattern>
 	<exclude-pattern>*/node_modules/*</exclude-pattern>
 	<exclude-pattern>*/vendor/*</exclude-pattern>
-	<exclude-pattern>*/tests/*/bootstrap.php</exclude-pattern>
-	<exclude-pattern>*/tests/phpstan/*</exclude-pattern>
+	<!-- Bootstraps set up globals for a test runner; the usual rules do not apply. -->
+	<exclude-pattern>*/bootstrap.php</exclude-pattern>
 </ruleset>

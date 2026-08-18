@@ -125,6 +125,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 					'callback'            => [ $this, 'upload_item' ],
 					'permission_callback' => [ $this, 'upload_item_permissions_check' ],
 					'args'                => [
+
 						/*
 						 * Deliberately not `required`. WordPress validates required
 						 * parameters in the dispatcher, before any permission
