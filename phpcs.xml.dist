@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<ruleset name="Upload from Phone">
+	<description>Coding standards for the Upload from Phone plugin.</description>
+
+	<file>.</file>
+
+	<exclude-pattern>/build/*</exclude-pattern>
+	<exclude-pattern>/node_modules/*</exclude-pattern>
+	<exclude-pattern>/vendor/*</exclude-pattern>
+
+	<arg value="sp"/>
+	<arg name="basepath" value="."/>
+	<arg name="colors"/>
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="8"/>
+
+	<rule ref="WordPress">
+		<!-- Namespaced functions are prefixed by their namespace. -->
+		<exclude name="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound"/>
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array" value="upload-from-phone"/>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="UploadFromPhone"/>
+				<element value="upload_from_phone"/>
+				<element value="ufp"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.WP.CapitalPDangit">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+
+	<config name="minimum_wp_version" value="6.8"/>
+	<config name="testVersion" value="8.0-"/>
+</ruleset>

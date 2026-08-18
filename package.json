@@ -1,0 +1,60 @@
+{
+	"name": "upload-from-phone",
+	"version": "0.1.0",
+	"description": "Upload photos and videos into a post straight from your phone.",
+	"author": "Pascal Birchler",
+	"license": "GPL-2.0-or-later",
+	"keywords": [
+		"wordpress",
+		"wordpress-plugin",
+		"media",
+		"upload",
+		"qrcode"
+	],
+	"homepage": "https://github.com/swissspidy/upload-from-phone",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/swissspidy/upload-from-phone.git"
+	},
+	"bugs": {
+		"url": "https://github.com/swissspidy/upload-from-phone/issues"
+	},
+	"engines": {
+		"node": ">=20"
+	},
+	"private": true,
+	"scripts": {
+		"build": "wp-scripts build",
+		"start": "wp-scripts start",
+		"format": "wp-scripts format",
+		"lint:css": "wp-scripts lint-style",
+		"lint:js": "wp-scripts lint-js",
+		"lint:js:fix": "wp-scripts lint-js --fix",
+		"lint:pkg-json": "wp-scripts lint-pkg-json",
+		"typecheck": "tsc --noEmit",
+		"env": "wp-env",
+		"test:unit": "wp-scripts test-unit-js"
+	},
+	"dependencies": {
+		"qrcode.react": "^4.2.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.18",
+		"@types/react-dom": "^19.2.4",
+		"@wordpress/api-fetch": "^7.53.0",
+		"@wordpress/block-editor": "^16.2.0",
+		"@wordpress/components": "^39.0.0",
+		"@wordpress/compose": "^8.6.0",
+		"@wordpress/data": "^10.53.0",
+		"@wordpress/editor": "^14.53.0",
+		"@wordpress/element": "^8.5.0",
+		"@wordpress/env": "^11.13.0",
+		"@wordpress/hooks": "^4.53.0",
+		"@wordpress/i18n": "^6.26.0",
+		"@wordpress/icons": "^15.4.0",
+		"@wordpress/media-utils": "^5.53.0",
+		"@wordpress/notices": "^5.53.0",
+		"@wordpress/scripts": "^34.1.0",
+		"typescript": "^5.9.0"
+	}
+}

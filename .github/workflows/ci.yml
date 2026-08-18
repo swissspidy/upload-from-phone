@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: JavaScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint:js
+
+      - run: npm run lint:css
+
+      - run: npm run typecheck
+
+      - run: npm run build
+
+  php:
+    name: PHP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          coverage: none
+          tools: composer
+
+      - uses: ramsey/composer-install@v3
+
+      - run: composer lint
+
+      - run: composer phpstan
+
+  test:
+    name: Unit tests (WordPress ${{ matrix.wordpress }}, PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.0'
+            wordpress: '6.8'
+          - php: '8.3'
+            wordpress: 'latest'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - uses: ramsey/composer-install@v3
+
+      - name: Start WordPress
+        run: npm run env start
+        env:
+          WP_ENV_CORE: ${{ matrix.wordpress == 'latest' && 'WordPress/WordPress' || format('WordPress/WordPress#{0}', matrix.wordpress) }}
+
+      - name: Run tests
+        run: npm run env run tests-cli --env-cwd=wp-content/plugins/upload-from-phone -- vendor/bin/phpunit

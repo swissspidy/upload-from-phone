@@ -1,0 +1,45 @@
+.upload-from-phone-modal {
+	max-width: 26rem;
+}
+
+.upload-from-phone-modal p {
+	margin: 0 0 1em;
+}
+
+.upload-from-phone-modal__qrcode {
+	margin: 0 0 1.5em;
+	text-align: center;
+}
+
+.upload-from-phone-modal__qrcode svg {
+	width: 11rem;
+	height: 11rem;
+
+	/*
+	 * The code has to stay light-on-dark-free to remain scannable, so it keeps
+	 * its own background regardless of the editor's colour scheme.
+	 */
+	background: #fff;
+	border-radius: 4px;
+}
+
+.upload-from-phone-modal__link {
+	display: flex;
+	gap: 0.5em;
+	align-items: flex-start;
+	margin: 0 0 1.5em;
+}
+
+.upload-from-phone-modal__link .components-base-control {
+	flex-grow: 1;
+	min-width: 0;
+}
+
+.upload-from-phone-modal__status {
+	margin: 0 0 1.5em;
+}
+
+.upload-from-phone-modal__actions {
+	display: flex;
+	justify-content: flex-end;
+}

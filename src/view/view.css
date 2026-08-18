@@ -1,0 +1,174 @@
+/**
+ * Styles for the upload page.
+ *
+ * Standalone on purpose: whoever opens this link is not there to look at the
+ * site, and the page has to behave the same way on every theme.
+ */
+
+.upload-from-phone {
+	--ufp-accent: #3858e9;
+	--ufp-border: #dcdcde;
+	--ufp-muted: #50575e;
+	--ufp-error: #b32d2e;
+	--ufp-success: #007017;
+
+	margin: 0;
+	padding: 0;
+	background: #f0f0f1;
+	color: #1e1e1e;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+	font-size: 16px;
+	line-height: 1.5;
+	-webkit-text-size-adjust: 100%;
+}
+
+.upload-from-phone__wrap {
+	box-sizing: border-box;
+	max-width: 32rem;
+	margin: 0 auto;
+	padding: 2rem 1rem;
+}
+
+.upload-from-phone__title {
+	margin: 0 0 1.5rem;
+	font-size: 1.25rem;
+	font-weight: 600;
+	text-align: center;
+}
+
+.upload-from-phone__panel {
+	padding: 1.5rem;
+	border: 1px solid var(--ufp-border);
+	border-radius: 4px;
+	background: #fff;
+}
+
+.upload-from-phone__lead {
+	margin: 0 0 1.5rem;
+}
+
+.upload-from-phone__hint {
+	margin: 0;
+	color: var(--ufp-muted);
+	font-size: 0.875rem;
+}
+
+/* Visually hidden, but still the control the label activates. */
+.upload-from-phone__input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.upload-from-phone__button {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+
+	/* Comfortably past the 44px minimum touch target. */
+	min-height: 3rem;
+	padding: 0.75rem 1rem;
+	border-radius: 4px;
+	background: var(--ufp-accent);
+	color: #fff;
+	font-size: 1rem;
+	font-weight: 500;
+	text-align: center;
+	cursor: pointer;
+}
+
+.upload-from-phone__input:focus-visible + .upload-from-phone__button {
+	outline: 2px solid var(--ufp-accent);
+	outline-offset: 2px;
+}
+
+.upload-from-phone__button[aria-disabled="true"] {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.upload-from-phone__list {
+	margin: 1rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.upload-from-phone__list:empty {
+	margin: 0;
+}
+
+.upload-from-phone__item {
+	display: flex;
+	gap: 1rem;
+	align-items: baseline;
+	justify-content: space-between;
+	padding: 0.5rem 0;
+	border-bottom: 1px solid var(--ufp-border);
+	font-size: 0.875rem;
+}
+
+.upload-from-phone__item:last-child {
+	border-bottom: 0;
+}
+
+.upload-from-phone__item-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.upload-from-phone__item-state {
+	flex-shrink: 0;
+	color: var(--ufp-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.upload-from-phone__item[data-status="done"] .upload-from-phone__item-state {
+	color: var(--ufp-success);
+}
+
+.upload-from-phone__item[data-status="failed"] .upload-from-phone__item-state {
+	color: var(--ufp-error);
+}
+
+.upload-from-phone__status {
+	margin: 1rem 0 0;
+	color: var(--ufp-muted);
+	font-size: 0.875rem;
+}
+
+.upload-from-phone__status:empty {
+	margin: 0;
+}
+
+.upload-from-phone__footer {
+	margin: 1.5rem 0 0;
+	color: var(--ufp-muted);
+	font-size: 0.875rem;
+	text-align: center;
+}
+
+.upload-from-phone.js .hide-if-js,
+.upload-from-phone.no-js .hide-if-no-js {
+	display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+
+	.upload-from-phone {
+		--ufp-border: #3c434a;
+		--ufp-muted: #a7aaad;
+		--ufp-error: #f86368;
+		--ufp-success: #68de7c;
+
+		background: #1e1e1e;
+		color: #f0f0f1;
+	}
+
+	.upload-from-phone__panel {
+		background: #2c3338;
+	}
+}
