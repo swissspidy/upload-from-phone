@@ -25,3 +25,8 @@ declare module '@wordpress/notices' {
 		name: string;
 	};
 }
+
+declare module '@wordpress/scripts/config/playwright.config' {
+	const config: import('@playwright/test').PlaywrightTestConfig;
+	export default config;
+}
