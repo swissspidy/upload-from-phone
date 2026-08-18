@@ -45,15 +45,19 @@ jobs:
                   coverage: none
                   tools: wp-cli
 
-            # Deliberately not pinned to :dev-main: that forces wp-cli's Composer
-            # to register the package as a VCS (git) repository, which needs a
-            # github-oauth token, and setup-php's implicit one doesn't pass
-            # Composer's own validation ("invalid characters"). Left unpinned,
-            # it resolves via Packagist to the latest tagged release instead —
-            # a plain dist-zip download, no token involved.
+            # Not :dev-main, and not left unversioned either: `wp package
+            # install` with no version at all still defaults internally to
+            # `dev-main || dev-master || dev-trunk` (see
+            # DEFAULT_DEV_BRANCH_CONSTRAINTS in wp-cli/package-command), which
+            # forces wp-cli's Composer to register the package as a VCS (git)
+            # repository — needing a github-oauth token that setup-php's
+            # implicit one doesn't pass Composer's own validation for
+            # ("invalid characters"). `:@stable` takes a different code path
+            # (GitHub's releases API, no oauth) to resolve the latest tagged
+            # release, then installs that as a plain Packagist dist-zip.
             - name: Install latest version of dist-archive-command
               if: ${{ env.CURRENT_TAG != 'nightly' }}
-              run: wp package install wp-cli/dist-archive-command
+              run: wp package install wp-cli/dist-archive-command:@stable
 
             - name: Setup Node
               uses: actions/setup-node@v7
