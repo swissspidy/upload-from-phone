@@ -38,12 +38,18 @@ jobs:
             # Not wp-cli:nightly: see the comment on the same step in
             # nightly-build.yml — its nightly phar isn't hosted as a GitHub
             # Releases asset, so setup-php can't fetch it.
+            #
+            # github-token: '' — see the comment on the same step in
+            # nightly-build.yml: setup-php writes this into Composer's
+            # global, job-wide auth.json while installing wp-cli, and a
+            # later step needs that file to *not* contain a token.
             - name: Setup PHP
               uses: shivammathur/setup-php@v2
               with:
                   php-version: latest
                   coverage: none
                   tools: wp-cli
+                  github-token: ''
 
             # :@stable, not left unversioned: see the comment on the same
             # step in nightly-build.yml — an unversioned install still
