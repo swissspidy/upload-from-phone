@@ -60,7 +60,7 @@ test.describe( 'Upload from phone', () => {
 		await expect( imageBlock.locator( 'img' ) ).toBeVisible();
 	} );
 
-	test( 'reports an expired link instead of accepting a stale one', async ( {
+	test( 'revokes the link server-side when cancelled, not just in the UI', async ( {
 		page,
 		secondPage,
 		editor,
@@ -80,13 +80,32 @@ test.describe( 'Upload from phone', () => {
 		} );
 		const uploadUrl = await modal.getByLabel( 'Upload link' ).inputValue();
 
-		// Cancelling revokes the link server-side immediately.
+		// The app fires this DELETE without awaiting it — closing the modal
+		// doesn't wait for the server to catch up, so neither should this
+		// test rely on that timing. Wait for the response itself instead.
+		const revoked = page.waitForResponse(
+			( response ) =>
+				response.request().method() === 'DELETE' &&
+				response
+					.url()
+					.includes( '/upload-from-phone/v1/upload-requests/' )
+		);
+
 		await modal.getByRole( 'button', { name: 'Cancel' } ).click();
+		await revoked;
 		await expect( modal ).toBeHidden();
 
-		await secondPage.goto( uploadUrl );
-		await expect(
-			secondPage.getByText( 'This upload link is no longer valid.' )
-		).toBeVisible();
+		/*
+		 * Cancelling deletes the upload request outright, rather than merely
+		 * marking it expired — the two look different to a visitor. A request
+		 * that is merely expired still exists as a post, so it renders this
+		 * plugin's own "no longer valid" copy; a deleted one leaves nothing
+		 * for WordPress to match against the token in the URL, so the request
+		 * falls through to a genuine, theme-rendered 404. Assert on the
+		 * status code precisely because of that: it's the one thing common to
+		 * both codepaths, and the one a visitor's browser can't be tricked by.
+		 */
+		const response = await secondPage.goto( uploadUrl );
+		expect( response?.status() ).toBe( 404 );
 	} );
 } );
