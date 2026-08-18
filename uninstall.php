@@ -26,7 +26,7 @@ use UploadFromPhone\Upload_Request;
  * time a file is uploaded, it belongs to the post being edited, not to the
  * request that brought it in.
  */
-$upload_requests = get_posts(
+$ufph_upload_requests = get_posts(
 	[
 		'post_type'      => Upload_Request::POST_TYPE,
 		'post_status'    => 'any',
@@ -35,8 +35,8 @@ $upload_requests = get_posts(
 	]
 );
 
-foreach ( $upload_requests as $post_id ) {
-	wp_delete_post( $post_id, true );
+foreach ( $ufph_upload_requests as $ufph_post_id ) {
+	wp_delete_post( $ufph_post_id, true );
 }
 
 // Belt and suspenders: deactivation already does this, but nothing
