@@ -1,0 +1,50 @@
+name: Deploy to WordPress.org
+
+# Only real releases — not the nightly build's own moving `nightly` tag, and
+# not pre-releases.
+on:
+    release:
+        types: [released]
+
+jobs:
+    deploy:
+        name: Deploy to WP.org
+        runs-on: ubuntu-latest
+        # Needed to attach the built zip to the GitHub release below.
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v7
+
+            - name: Setup Node
+              uses: actions/setup-node@v7
+              with:
+                  node-version-file: '.nvmrc'
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build plugin
+              run: npm run build
+
+            # Reads .distignore to decide what ships (same file `wp
+            # dist-archive` uses elsewhere in this repo) and moves
+            # .wordpress-org/ to the top-level `assets` directory in SVN —
+            # the banner, icon, and screenshots shown on the directory page,
+            # kept separate from the plugin's own `trunk`.
+            - name: Deploy to WordPress.org
+              id: deploy
+              uses: 10up/action-wordpress-plugin-deploy@stable
+              with:
+                  generate-zip: true
+              env:
+                  SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+                  SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+
+            - name: Attach ZIP to the release
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: ${{ steps.deploy.outputs.zip-path }}

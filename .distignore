@@ -3,6 +3,7 @@
 .git
 .github
 .gitignore
+.wordpress-org
 .wp-env.json
 bin
 composer.json
