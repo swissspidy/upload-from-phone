@@ -53,12 +53,13 @@ function register_post_type(): void {
 			'can_export'          => false,
 			'exclude_from_search' => true,
 			'delete_with_user'    => true,
+
 			/*
 			 * Without this, a site on plain permalinks would address the upload
 			 * page as `?post_type=…&p=123` — a guessable post ID standing in for
 			 * an unguessable token. With it, the token is in the URL either way.
 			 */
-			'query_var'           => 'ufp_upload_request',
+			'query_var'           => 'ufph_upload_request',
 		]
 	);
 }

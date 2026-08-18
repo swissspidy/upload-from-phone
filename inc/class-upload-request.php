@@ -28,32 +28,32 @@ final class Upload_Request {
 	/**
 	 * Post type name.
 	 */
-	public const POST_TYPE = 'ufp_upload_request';
+	public const POST_TYPE = 'ufph_upload_request';
 
 	/**
 	 * Meta key holding the expiration timestamp.
 	 */
-	public const META_EXPIRES_AT = 'ufp_expires_at';
+	public const META_EXPIRES_AT = 'ufph_expires_at';
 
 	/**
 	 * Meta key holding the allowed media types.
 	 */
-	public const META_ALLOWED_TYPES = 'ufp_allowed_types';
+	public const META_ALLOWED_TYPES = 'ufph_allowed_types';
 
 	/**
 	 * Meta key holding the list of allowed file type specifiers.
 	 */
-	public const META_ACCEPT = 'ufp_accept';
+	public const META_ACCEPT = 'ufph_accept';
 
 	/**
 	 * Meta key holding whether multiple files may be uploaded.
 	 */
-	public const META_MULTIPLE = 'ufp_multiple';
+	public const META_MULTIPLE = 'ufph_multiple';
 
 	/**
 	 * Meta key holding the IDs of the attachments uploaded so far.
 	 */
-	public const META_ATTACHMENT_ID = 'ufp_attachment_id';
+	public const META_ATTACHMENT_ID = 'ufph_attachment_id';
 
 	/**
 	 * Default lifetime of an upload request, in seconds.
@@ -359,7 +359,8 @@ final class Upload_Request {
 	 * @return int[] Attachment IDs, oldest first.
 	 */
 	public function get_attachment_ids(): array {
-		$ids = get_post_meta( $this->post->ID, self::META_ATTACHMENT_ID );
+		// Passed explicitly: this key holds one row per uploaded file, not a single value.
+		$ids = get_post_meta( $this->post->ID, self::META_ATTACHMENT_ID, false );
 
 		return array_values( array_map( 'intval', (array) $ids ) );
 	}

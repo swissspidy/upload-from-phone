@@ -6,11 +6,11 @@
  */
 
 .upload-from-phone {
-	--ufp-accent: #3858e9;
-	--ufp-border: #dcdcde;
-	--ufp-muted: #50575e;
-	--ufp-error: #b32d2e;
-	--ufp-success: #007017;
+	--ufph-accent: #3858e9;
+	--ufph-border: #dcdcde;
+	--ufph-muted: #50575e;
+	--ufph-error: #b32d2e;
+	--ufph-success: #007017;
 
 	margin: 0;
 	padding: 0;
@@ -38,7 +38,7 @@
 
 .upload-from-phone__panel {
 	padding: 1.5rem;
-	border: 1px solid var(--ufp-border);
+	border: 1px solid var(--ufph-border);
 	border-radius: 4px;
 	background: #fff;
 }
@@ -49,7 +49,7 @@
 
 .upload-from-phone__hint {
 	margin: 0;
-	color: var(--ufp-muted);
+	color: var(--ufph-muted);
 	font-size: 0.875rem;
 }
 
@@ -72,7 +72,7 @@
 	min-height: 3rem;
 	padding: 0.75rem 1rem;
 	border-radius: 4px;
-	background: var(--ufp-accent);
+	background: var(--ufph-accent);
 	color: #fff;
 	font-size: 1rem;
 	font-weight: 500;
@@ -81,7 +81,7 @@
 }
 
 .upload-from-phone__input:focus-visible + .upload-from-phone__button {
-	outline: 2px solid var(--ufp-accent);
+	outline: 2px solid var(--ufph-accent);
 	outline-offset: 2px;
 }
 
@@ -106,7 +106,7 @@
 	align-items: baseline;
 	justify-content: space-between;
 	padding: 0.5rem 0;
-	border-bottom: 1px solid var(--ufp-border);
+	border-bottom: 1px solid var(--ufph-border);
 	font-size: 0.875rem;
 }
 
@@ -122,21 +122,21 @@
 
 .upload-from-phone__item-state {
 	flex-shrink: 0;
-	color: var(--ufp-muted);
+	color: var(--ufph-muted);
 	font-variant-numeric: tabular-nums;
 }
 
 .upload-from-phone__item[data-status="done"] .upload-from-phone__item-state {
-	color: var(--ufp-success);
+	color: var(--ufph-success);
 }
 
 .upload-from-phone__item[data-status="failed"] .upload-from-phone__item-state {
-	color: var(--ufp-error);
+	color: var(--ufph-error);
 }
 
 .upload-from-phone__status {
 	margin: 1rem 0 0;
-	color: var(--ufp-muted);
+	color: var(--ufph-muted);
 	font-size: 0.875rem;
 }
 
@@ -146,7 +146,7 @@
 
 .upload-from-phone__footer {
 	margin: 1.5rem 0 0;
-	color: var(--ufp-muted);
+	color: var(--ufph-muted);
 	font-size: 0.875rem;
 	text-align: center;
 }
@@ -159,10 +159,10 @@
 @media (prefers-color-scheme: dark) {
 
 	.upload-from-phone {
-		--ufp-border: #3c434a;
-		--ufp-muted: #a7aaad;
-		--ufp-error: #f86368;
-		--ufp-success: #68de7c;
+		--ufph-border: #3c434a;
+		--ufph-muted: #a7aaad;
+		--ufph-error: #f86368;
+		--ufph-success: #68de7c;
 
 		background: #1e1e1e;
 		color: #f0f0f1;

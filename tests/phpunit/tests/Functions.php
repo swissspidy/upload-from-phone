@@ -17,7 +17,7 @@ use function UploadFromPhone\filter_cron_schedules;
 use function UploadFromPhone\get_upload_page_data;
 
 /**
- * @coversDefaultClass \UploadFromPhone
+ * Tests for the plugin's functions.
  */
 class Test_Functions extends WP_UnitTestCase {
 	/**

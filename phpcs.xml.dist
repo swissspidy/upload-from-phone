@@ -1,45 +1,61 @@
 <?xml version="1.0"?>
-<ruleset name="Upload from Phone">
-	<description>Coding standards for the Upload from Phone plugin.</description>
+<ruleset name="WordPress Coding Standards for Upload from Phone">
+	<description>A custom set of code standard rules for Upload from Phone.</description>
 
-	<file>.</file>
+	<rule ref="WordPress-Core">
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax" />
+	</rule>
 
-	<exclude-pattern>/build/*</exclude-pattern>
-	<exclude-pattern>/node_modules/*</exclude-pattern>
-	<exclude-pattern>/vendor/*</exclude-pattern>
-
-	<arg value="sp"/>
-	<arg name="basepath" value="."/>
-	<arg name="colors"/>
-	<arg name="extensions" value="php"/>
-	<arg name="parallel" value="8"/>
-
-	<rule ref="WordPress">
-		<!-- Namespaced functions are prefixed by their namespace. -->
-		<exclude name="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound"/>
-		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+	<rule ref="WordPress-Docs">
+		<exclude-pattern>*/tests/*</exclude-pattern>
 	</rule>
 
 	<rule ref="WordPress.WP.I18n">
 		<properties>
-			<property name="text_domain" type="array" value="upload-from-phone"/>
+			<property name="text_domain" value="upload-from-phone" />
 		</properties>
 	</rule>
 
+	<!-- Make sure we prefix everything in the global namespace. -->
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
 		<properties>
 			<property name="prefixes" type="array">
+				<element value="ufph"/>
 				<element value="UploadFromPhone"/>
 				<element value="upload_from_phone"/>
-				<element value="ufp"/>
 			</property>
 		</properties>
 	</rule>
 
-	<rule ref="WordPress.WP.CapitalPDangit">
-		<exclude-pattern>/tests/*</exclude-pattern>
+	<rule ref="PSR1.Files.SideEffects.FoundWithSymbols">
+		<exclude-pattern>upload-from-phone.php</exclude-pattern>
 	</rule>
 
-	<config name="minimum_wp_version" value="6.8"/>
+	<rule ref="WordPress.Files.FileName">
+		<exclude-pattern>tests/*</exclude-pattern>
+	</rule>
+
+	<!-- We only support the latest major WordPress release. -->
+	<config name="minimum_wp_version" value="6.8" />
+	<rule ref="WordPress.WP.DeprecatedFunctions" />
+
+	<!-- Check all PHP files in directory tree by default. -->
+	<arg name="extensions" value="php"/>
+	<arg value="sp"/>
+	<arg name="basepath" value="."/>
+	<arg name="colors"/>
+	<arg name="parallel" value="8"/>
+	<file>.</file>
+
+	<!-- File Layout: Declare symbols or run code, but not both. -->
+	<rule ref="PSR1.Files.SideEffects" />
+
+	<!-- Test for PHP 8.0+ compatibility. -->
 	<config name="testVersion" value="8.0-"/>
+
+	<exclude-pattern>*/build/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/tests/*/bootstrap.php</exclude-pattern>
+	<exclude-pattern>*/tests/phpstan/*</exclude-pattern>
 </ruleset>

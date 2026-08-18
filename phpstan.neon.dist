@@ -2,10 +2,10 @@ parameters:
 	level: 6
 	paths:
 		- upload-from-phone.php
-		- inc
-		- templates
+		- inc/
+		- templates/
 	scanFiles:
 		- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
 	bootstrapFiles:
-		- upload-from-phone.php
+		- tests/phpstan/bootstrap.php
 	treatPhpDocTypesAsCertain: false

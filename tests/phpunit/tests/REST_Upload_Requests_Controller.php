@@ -63,6 +63,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 	public function set_up(): void {
 		parent::set_up();
 
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Firing a core hook, not declaring one.
 		do_action( 'rest_api_init' );
 	}
 
@@ -412,6 +413,7 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 		$request = new WP_REST_Request( 'POST', self::ROUTE . '/' . $token . '/media' );
 		$request->set_param( 'filename', $filename );
 		$request->set_header( 'content_type', 'image/jpeg' );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Reading a fixture off local disk.
 		$request->set_body( file_get_contents( DIR_TESTDATA . '/images/canola.jpg' ) );
 
 		return rest_get_server()->dispatch( $request );
