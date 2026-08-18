@@ -1,0 +1,27 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"landingPage": "/wp-admin/post-new.php",
+	"preferredVersions": {
+		"php": "latest",
+		"wp": "latest"
+	},
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginZipFile": {
+				"resource": "url",
+				"url": "https://swissspidy.github.io/upload-from-phone/nightly.zip"
+			}
+		},
+		{
+			"step": "activatePlugin",
+			"pluginName": "Upload from Phone",
+			"pluginPath": "/wordpress/wp-content/plugins/upload-from-phone"
+		},
+		{
+			"step": "login",
+			"username": "admin",
+			"password": "password"
+		}
+	]
+}
