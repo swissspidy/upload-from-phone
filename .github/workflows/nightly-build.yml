@@ -30,13 +30,20 @@ jobs:
               run: |
                   echo "CURRENT_TAG=$(git tag --points-at HEAD)" >> $GITHUB_ENV
 
+            # Not wp-cli:nightly: setup-php fetches that from a GitHub Releases
+            # asset tagged `vnightly`, which wp-cli doesn't publish — its nightly
+            # phar is only ever hosted at a different, non-Releases URL. The
+            # install fails outright ("Failed to download wp-cli from
+            # .../releases/download/vnightly/wp-cli-nightly.phar") rather than
+            # falling back to stable, so this has to stay pinned to the
+            # ordinary release channel.
             - name: Setup PHP
               uses: shivammathur/setup-php@v2
               if: ${{ env.CURRENT_TAG != 'nightly' }}
               with:
                   php-version: latest
                   coverage: none
-                  tools: wp-cli:nightly
+                  tools: wp-cli
 
             # Deliberately not pinned to :dev-main: that forces wp-cli's Composer
             # to register the package as a VCS (git) repository, which needs a
