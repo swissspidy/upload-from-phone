@@ -1,8 +1,28 @@
 # Upload from Phone
 
+[![License](https://img.shields.io/github/license/swissspidy/upload-from-phone)](https://github.com/swissspidy/upload-from-phone/blob/main/LICENSE)
+
 Upload photos and videos into a post straight from your phone. Scan a QR code, pick your files, done — no app, and no login on the phone.
 
 This started life as a feature of [Media Experiments](https://github.com/swissspidy/media-experiments) and now stands on its own.
+
+https://github.com/swissspidy/media-experiments/assets/841956/b0b63f19-7f78-4a8d-9255-b59ad996368a
+
+## Quick Start
+
+Install and activate the latest nightly build on your WordPress website, open a post, and click **Upload from phone** on any media block.
+
+[![Download latest nightly build](https://img.shields.io/badge/Download%20latest%20nightly-24282D?style=for-the-badge&logo=Files&logoColor=ffffff)](https://swissspidy.github.io/upload-from-phone/nightly.zip)
+
+Note: Requires **WordPress 6.8+** and **PHP 8.0+**.
+
+### Using WordPress Playground
+
+Use [WordPress Playground](https://wordpress.org/playground/) to try this plugin directly in the browser, without installing it on your site:
+
+[![Test on WordPress Playground](https://img.shields.io/badge/Test%20on%20WordPress%20Playground-3F57E1?style=for-the-badge&logo=WordPress&logoColor=ffffff)](https://playground.wordpress.net/?mode=seamless&blueprint-url=https://raw.githubusercontent.com/swissspidy/upload-from-phone/main/blueprints/playground.json)
+
+**Note:** The upload page in Playground has to be opened by whatever device is running Playground itself — Playground is not reachable from a phone on your local network.
 
 ## How it works
 
