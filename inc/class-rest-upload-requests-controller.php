@@ -191,7 +191,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 			return $upload_request;
 		}
 
-		$response = rest_ensure_response( $this->prepare_item_for_response( $upload_request, $request ) );
+		$response = $this->prepare_item_for_response( $upload_request, $request );
 		$response->set_status( 201 );
 
 		return $response;
@@ -220,7 +220,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 			return $this->not_found_error();
 		}
 
-		return rest_ensure_response( $this->prepare_item_for_response( $upload_request, $request ) );
+		return $this->prepare_item_for_response( $upload_request, $request );
 	}
 
 	/**
@@ -246,7 +246,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 			return $this->not_found_error();
 		}
 
-		$previous = $this->prepare_item_for_response( $upload_request, $request );
+		$previous = $this->prepare_item_for_response( $upload_request, $request )->get_data();
 
 		$upload_request->delete();
 
@@ -459,7 +459,6 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 		}
 
 		$file_data = [
-			'error'    => null,
 			'tmp_name' => $tmp_name,
 			'name'     => $filename,
 			'type'     => $type,
@@ -558,11 +557,9 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 	 *
 	 * @param Upload_Request  $item    Upload request.
 	 * @param WP_REST_Request $request Full details about the request.
-	 * @return array Response data.
-	 *
-	 * @phpstan-return array<string, mixed>
+	 * @return WP_REST_Response Response object.
 	 */
-	public function prepare_item_for_response( $item, $request ): array {
+	public function prepare_item_for_response( $item, $request ): WP_REST_Response {
 		$attachment_ids = $item->get_attachment_ids();
 
 		$data = [
@@ -578,7 +575,9 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 			'attachments'    => $this->prepare_attachments( $attachment_ids, $request ),
 		];
 
-		return $data;
+		// Constructed directly rather than through rest_ensure_response(), which
+		// is documented as also returning WP_Error and would widen the signature.
+		return new WP_REST_Response( $data );
 	}
 
 	/**

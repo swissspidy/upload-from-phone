@@ -206,7 +206,7 @@ class Test_Functions extends WP_UnitTestCase {
 	 */
 	public function tear_down(): void {
 		if ( $this->reset_client_side_processing ) {
-			remove_all_filters( 'upload_from_phone_client_side_processing' );
+			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
 			wp_deregister_script( 'wp-upload-media' );
 
 			$this->reset_client_side_processing = false;
