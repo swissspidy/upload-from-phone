@@ -60,14 +60,15 @@ jobs:
                   tools: wp-cli
                   github-token: ''
 
-            # :@stable resolves the latest tagged release via GitHub's
-            # releases API rather than falling back to a dev branch — it
-            # doesn't avoid the VCS path above (nothing does, for this
-            # package), but it does mean the clone lands on a real release
-            # instead of main.
-            - name: Install latest version of dist-archive-command
+            # Pinned to 3.1.0, not :@stable: 3.2.0+ requires
+            # wp-cli/wp-cli ^2.13, which has never actually been
+            # released (Packagist's newest wp-cli/wp-cli is 2.12.0, the
+            # same version `tools: wp-cli` above installs) — so :@stable
+            # resolves to a release that can never install here. 3.1.0 is
+            # the last release still requiring wp-cli/wp-cli ^2.
+            - name: Install compatible version of dist-archive-command
               if: ${{ env.CURRENT_TAG != 'nightly' }}
-              run: wp package install wp-cli/dist-archive-command:@stable
+              run: wp package install wp-cli/dist-archive-command:3.1.0
 
             - name: Setup Node
               uses: actions/setup-node@v7
