@@ -109,8 +109,9 @@ npm run typecheck   # Type check
 composer lint       # Lint PHP
 composer phpstan    # Static analysis
 
-npm run wp-env start   # Start a local WordPress
-npm run test:e2e       # Run the end-to-end tests against it
+npx playwright install chromium   # First time only — Playwright manages its own browser binaries
+npm run wp-env start               # Start a local WordPress
+npm run test:e2e                   # Run the end-to-end tests against it
 ```
 
 ## License
