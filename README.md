@@ -109,7 +109,8 @@ npm run typecheck   # Type check
 composer lint       # Lint PHP
 composer phpstan    # Static analysis
 
-npm run env start   # Start a local WordPress
+npm run wp-env start   # Start a local WordPress
+npm run test:e2e       # Run the end-to-end tests against it
 ```
 
 ## License
