@@ -37,6 +37,20 @@ jobs:
             # .../releases/download/vnightly/wp-cli-nightly.phar") rather than
             # falling back to stable, so this has to stay pinned to the
             # ordinary release channel.
+            # github-token: '' — setup-php writes its github-token input into
+            # Composer's global, job-wide auth.json while installing wp-cli
+            # (to avoid GitHub API rate limits during the install itself).
+            # That file persists for the rest of the job, and the value it
+            # writes fails Composer's own validation ("invalid characters")
+            # — which only surfaces later, the moment something needs that
+            # auth. That something is the very next step: `wp package
+            # install` registers this package as a VCS (git) repository
+            # regardless of version (traced through
+            # get_package_by_shortened_identifier() in wp-cli's own source —
+            # it's not specific to :dev-main or being left unversioned), and
+            # a VCS clone is exactly when Composer reaches for that token.
+            # With none configured, it clones the (public) repo anonymously
+            # instead.
             - name: Setup PHP
               uses: shivammathur/setup-php@v2
               if: ${{ env.CURRENT_TAG != 'nightly' }}
@@ -44,17 +58,13 @@ jobs:
                   php-version: latest
                   coverage: none
                   tools: wp-cli
+                  github-token: ''
 
-            # Not :dev-main, and not left unversioned either: `wp package
-            # install` with no version at all still defaults internally to
-            # `dev-main || dev-master || dev-trunk` (see
-            # DEFAULT_DEV_BRANCH_CONSTRAINTS in wp-cli/package-command), which
-            # forces wp-cli's Composer to register the package as a VCS (git)
-            # repository — needing a github-oauth token that setup-php's
-            # implicit one doesn't pass Composer's own validation for
-            # ("invalid characters"). `:@stable` takes a different code path
-            # (GitHub's releases API, no oauth) to resolve the latest tagged
-            # release, then installs that as a plain Packagist dist-zip.
+            # :@stable resolves the latest tagged release via GitHub's
+            # releases API rather than falling back to a dev branch — it
+            # doesn't avoid the VCS path above (nothing does, for this
+            # package), but it does mean the clone lands on a real release
+            # instead of main.
             - name: Install latest version of dist-archive-command
               if: ${{ env.CURRENT_TAG != 'nightly' }}
               run: wp package install wp-cli/dist-archive-command:@stable
