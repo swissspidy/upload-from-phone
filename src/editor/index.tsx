@@ -32,9 +32,16 @@ function toArray( accept?: string | string[] ): string[] | undefined {
 		return undefined;
 	}
 
-	return Array.isArray( accept )
-		? accept
-		: accept.split( ',' ).map( ( value ) => value.trim() );
+	if ( Array.isArray( accept ) ) {
+		return accept;
+	}
+
+	// A trailing or doubled comma would otherwise reach the server as an
+	// empty file type specifier.
+	return accept
+		.split( ',' )
+		.map( ( value ) => value.trim() )
+		.filter( Boolean );
 }
 
 /**

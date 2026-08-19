@@ -129,19 +129,28 @@ test.describe( 'Upload from phone', () => {
 		const first = imageBlocks.nth( 0 );
 		const second = imageBlocks.nth( 1 );
 
-		await first
-			.getByRole( 'button', { name: 'Upload from phone' } )
-			.click();
-		await second
-			.getByRole( 'button', { name: 'Upload from phone' } )
-			.click();
-
 		const firstPanel = first.locator( '.upload-from-phone-panel' );
 		const secondPanel = second.locator( '.upload-from-phone-panel' );
 
+		/*
+		 * Select each block before reaching for its button. An unselected
+		 * empty Image block draws its illustration across the placeholder,
+		 * so the click lands on the placeholder rather than on the button —
+		 * core behaviour, and the reason a person clicks the block first.
+		 * Inserting the second block is what deselects the first.
+		 */
+		await editor.selectBlocks( first );
+		await first
+			.getByRole( 'button', { name: 'Upload from phone' } )
+			.click();
 		const firstUrl = await firstPanel
 			.getByLabel( 'Upload link' )
 			.inputValue();
+
+		await editor.selectBlocks( second );
+		await second
+			.getByRole( 'button', { name: 'Upload from phone' } )
+			.click();
 		const secondUrl = await secondPanel
 			.getByLabel( 'Upload link' )
 			.inputValue();
