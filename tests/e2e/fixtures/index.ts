@@ -55,6 +55,38 @@ function getSourceMapForEntry( entry: V8CoverageEntry, index?: number ) {
 
 export const test = base.extend< E2EFixture, {} >( {
 	page: async ( { page, browserName }, use ) => {
+		// TODO: temporary diagnostic for the WP 6.8 e2e failure — remove once
+		// the browser-side error behind it is identified.
+		page.on( 'console', ( message ) => {
+			if ( message.type() === 'error' || message.type() === 'warning' ) {
+				// eslint-disable-next-line no-console
+				console.log(
+					`[browser ${ message.type() }] ${ message.text() }`
+				);
+			}
+		} );
+		page.on( 'pageerror', ( error ) => {
+			// eslint-disable-next-line no-console
+			console.log(
+				`[browser pageerror] ${ error.stack ?? error.message }`
+			);
+		} );
+		page.on( 'requestfailed', ( request ) => {
+			// eslint-disable-next-line no-console
+			console.log(
+				`[browser requestfailed] ${ request.method() } ${ request.url() } — ${ request.failure()
+					?.errorText }`
+			);
+		} );
+		page.on( 'response', ( response ) => {
+			if ( response.status() >= 400 ) {
+				// eslint-disable-next-line no-console
+				console.log(
+					`[browser response] ${ response.status() } ${ response.url() }`
+				);
+			}
+		} );
+
 		if (
 			browserName !== 'chromium' ||
 			process.env.COLLECT_COVERAGE !== 'true'
