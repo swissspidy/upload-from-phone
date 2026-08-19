@@ -41,6 +41,15 @@ class Test_Functions extends WP_UnitTestCase {
 	private bool $reset_client_side_processing = false;
 
 	/**
+	 * Whether enable_client_side_processing() registered `wp-upload-media`
+	 * itself, as opposed to it already being registered (e.g. by WordPress
+	 * core, which bundles it as of WP 7.1) before the test ran.
+	 *
+	 * @var bool
+	 */
+	private bool $registered_wp_upload_media_script = false;
+
+	/**
 	 * Sets up shared fixtures.
 	 *
 	 * @param \WP_UnitTest_Factory $factory Factory.
@@ -378,6 +387,12 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @return void
 	 */
 	private function enable_client_side_processing(): void {
+		// wp_register_script() is a no-op for an already-registered handle, so a
+		// pre-existing registration (WordPress core bundles this script as of
+		// WP 7.1) survives this call untouched — and tear_down() must leave it
+		// alone rather than deregister the real thing.
+		$this->registered_wp_upload_media_script = ! wp_script_is( 'wp-upload-media', 'registered' );
+
 		wp_register_script( 'wp-upload-media', 'https://example.org/upload-media.js', [], '1.0', true );
 
 		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
@@ -393,7 +408,10 @@ class Test_Functions extends WP_UnitTestCase {
 	public function tear_down(): void {
 		if ( $this->reset_client_side_processing ) {
 			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
-			wp_deregister_script( 'wp-upload-media' );
+
+			if ( $this->registered_wp_upload_media_script ) {
+				wp_deregister_script( 'wp-upload-media' );
+			}
 
 			// register_assets() may have registered upload-from-phone-view with a
 			// dependency on wp-upload-media while the filter was active. WordPress
