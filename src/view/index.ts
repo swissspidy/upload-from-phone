@@ -28,6 +28,8 @@ interface Elements {
 	status: HTMLParagraphElement;
 }
 
+const DROPZONE_ACTIVE_CLASS = 'upload-from-phone__root--dragover';
+
 const settings: UploadFromPhoneData = window.uploadFromPhone;
 
 const rows: FileRow[] = [];
@@ -51,6 +53,40 @@ function getUploadQueue() {
 	const data = wp?.data;
 
 	return store && data ? { store, data } : null;
+}
+
+/**
+ * Whether a drag event is carrying files, as opposed to text or some other
+ * draggable.
+ *
+ * `dataTransfer.items` and `.files` are only populated on drop, for security
+ * reasons — `dragenter`/`dragover` can only see the drag's `types`, which is
+ * enough to tell files apart from everything else a user might drag.
+ *
+ * @param event The drag event.
+ */
+function isDraggingFiles( event: DragEvent ): boolean {
+	return Array.from( event.dataTransfer?.types ?? [] ).includes( 'Files' );
+}
+
+/**
+ * Extracts the files from a drop event's data transfer.
+ *
+ * Prefers `items` over `files` so anything that is not a plain file — a
+ * dragged folder, for instance — can be filtered out instead of reaching
+ * `start()` as a `File` with nothing readable in it.
+ *
+ * @param dataTransfer The drop event's data transfer.
+ */
+function getDroppedFiles( dataTransfer: DataTransfer ): File[] {
+	if ( dataTransfer.items.length ) {
+		return Array.from( dataTransfer.items )
+			.filter( ( item ) => 'file' === item.kind )
+			.map( ( item ) => item.getAsFile() )
+			.filter( ( file ): file is File => null !== file );
+	}
+
+	return Array.from( dataTransfer.files );
 }
 
 /**
@@ -380,6 +416,13 @@ function render( container: HTMLElement ) {
 		? __( 'Choose files', 'upload-from-phone' )
 		: __( 'Choose a file', 'upload-from-phone' );
 
+	const hint = document.createElement( 'p' );
+	hint.className = 'upload-from-phone__dropzone-hint';
+	hint.textContent = __(
+		'Or drag and drop files here.',
+		'upload-from-phone'
+	);
+
 	const list = document.createElement( 'ul' );
 	list.className = 'upload-from-phone__list';
 
@@ -388,7 +431,7 @@ function render( container: HTMLElement ) {
 	status.setAttribute( 'role', 'status' );
 	status.setAttribute( 'aria-live', 'polite' );
 
-	container.append( input, label, list, status );
+	container.append( input, label, hint, list, status );
 
 	const elements: Elements = { input, label, list, status };
 
@@ -402,10 +445,100 @@ function render( container: HTMLElement ) {
 			void start( files, elements );
 		}
 	} );
+
+	registerDropzone( container, elements );
+}
+
+/**
+ * Wires up the container to accept files dropped anywhere onto it.
+ *
+ * `dragenter`/`dragleave` fire on every element the pointer crosses,
+ * including children of the dropzone, so a depth counter is used rather than
+ * a plain boolean — otherwise dragging over the file list or the button
+ * would flicker the dropzone state off and back on.
+ *
+ * @param container The dropzone element.
+ * @param elements  The page elements.
+ */
+function registerDropzone( container: HTMLElement, elements: Elements ) {
+	let depth = 0;
+
+	container.addEventListener( 'dragenter', ( event ) => {
+		if ( elements.input.disabled || ! isDraggingFiles( event ) ) {
+			return;
+		}
+
+		event.preventDefault();
+		depth++;
+		container.classList.add( DROPZONE_ACTIVE_CLASS );
+	} );
+
+	container.addEventListener( 'dragover', ( event ) => {
+		if ( elements.input.disabled || ! isDraggingFiles( event ) ) {
+			return;
+		}
+
+		// Required for the element to be treated as a valid drop target at all.
+		event.preventDefault();
+
+		if ( event.dataTransfer ) {
+			event.dataTransfer.dropEffect = 'copy';
+		}
+	} );
+
+	container.addEventListener( 'dragleave', ( event ) => {
+		if ( ! isDraggingFiles( event ) ) {
+			return;
+		}
+
+		depth = Math.max( 0, depth - 1 );
+
+		if ( 0 === depth ) {
+			container.classList.remove( DROPZONE_ACTIVE_CLASS );
+		}
+	} );
+
+	container.addEventListener( 'drop', ( event ) => {
+		if ( ! isDraggingFiles( event ) ) {
+			return;
+		}
+
+		event.preventDefault();
+		depth = 0;
+		container.classList.remove( DROPZONE_ACTIVE_CLASS );
+
+		if ( elements.input.disabled || ! event.dataTransfer ) {
+			return;
+		}
+
+		const files = getDroppedFiles( event.dataTransfer );
+		const accepted = settings.multiple ? files : files.slice( 0, 1 );
+
+		if ( accepted.length ) {
+			void start( accepted, elements );
+		}
+	} );
 }
 
 const container = document.getElementById( 'upload-from-phone-root' );
 
 if ( container && settings ) {
 	render( container );
+
+	/*
+	 * A file dropped anywhere else on the page — the panel padding, the
+	 * heading, the footer link — would otherwise make the browser navigate to
+	 * it, replacing the page mid-upload.
+	 */
+	document.addEventListener( 'dragover', ( event ) => {
+		if ( isDraggingFiles( event ) ) {
+			event.preventDefault();
+		}
+	} );
+
+	document.addEventListener( 'drop', ( event ) => {
+		if ( isDraggingFiles( event ) ) {
+			event.preventDefault();
+		}
+	} );
 }

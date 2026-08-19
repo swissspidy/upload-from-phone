@@ -1,7 +1,9 @@
 /**
  * External dependencies
  */
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import type { Locator } from '@playwright/test';
 
 /**
  * Internal dependencies
@@ -17,6 +19,36 @@ const TEST_IMAGE = join(
 
 /** Matches the upload page URL, whose last segment is the request token. */
 const UPLOAD_URL = /\/upload\/[a-f0-9]{32}\/?$/;
+
+/**
+ * Drops a file onto an element.
+ *
+ * Playwright has no way to drive a real OS-level drag, so this builds the
+ * `DataTransfer` a browser would hand to the drop handler in-page and
+ * dispatches the same events dragging a file in from the OS would fire.
+ *
+ * @param target   The element to drop the file onto.
+ * @param filePath Path of the file to drop.
+ */
+async function dropFile( target: Locator, filePath: string ) {
+	const contents = await readFile( filePath );
+
+	const dataTransfer = await target.page().evaluateHandle(
+		( { bytes, name } ) => {
+			const transfer = new DataTransfer();
+			transfer.items.add(
+				new File( [ new Uint8Array( bytes ) ], name, {
+					type: 'image/png',
+				} )
+			);
+			return transfer;
+		},
+		{ bytes: Array.from( contents ), name: basename( filePath ) }
+	);
+
+	await target.dispatchEvent( 'dragenter', { dataTransfer } );
+	await target.dispatchEvent( 'drop', { dataTransfer } );
+}
 
 test.describe( 'Upload from phone', () => {
 	test.beforeEach( async ( { admin, requestUtils } ) => {
@@ -61,6 +93,37 @@ test.describe( 'Upload from phone', () => {
 		).toBeVisible();
 
 		// The editor polls for the upload on its own; no action needed here.
+		await expect( panel ).toBeHidden( { timeout: 10_000 } );
+		await expect( imageBlock.locator( 'img' ) ).toBeVisible();
+	} );
+
+	test( 'uploads media dropped onto the upload page into an Image block', async ( {
+		secondPage,
+		editor,
+	} ) => {
+		await editor.insertBlock( { name: 'core/image' } );
+
+		const imageBlock = editor.canvas.locator(
+			'role=document[name="Block: Image"i]'
+		);
+
+		await imageBlock
+			.getByRole( 'button', { name: 'Upload from phone' } )
+			.click();
+
+		const panel = imageBlock.locator( '.upload-from-phone-panel' );
+		const uploadUrl = await panel.getByLabel( 'Upload link' ).inputValue();
+
+		await secondPage.goto( uploadUrl );
+
+		const dropzone = secondPage.locator( '#upload-from-phone-root' );
+
+		await dropFile( dropzone, TEST_IMAGE );
+
+		await expect(
+			secondPage.getByText( 'All done. You can close this page.' )
+		).toBeVisible();
+
 		await expect( panel ).toBeHidden( { timeout: 10_000 } );
 		await expect( imageBlock.locator( 'img' ) ).toBeVisible();
 	} );
