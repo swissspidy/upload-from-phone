@@ -30,45 +30,56 @@ jobs:
               run: |
                   echo "CURRENT_TAG=$(git tag --points-at HEAD)" >> $GITHUB_ENV
 
-            # Not wp-cli:nightly: setup-php fetches that from a GitHub Releases
-            # asset tagged `vnightly`, which wp-cli doesn't publish — its nightly
-            # phar is only ever hosted at a different, non-Releases URL. The
-            # install fails outright ("Failed to download wp-cli from
-            # .../releases/download/vnightly/wp-cli-nightly.phar") rather than
-            # falling back to stable, so this has to stay pinned to the
-            # ordinary release channel.
+            # tools: composer, not wp-cli: setup-php's own wp-cli install
+            # (tools: wp-cli, or tools: wp-cli:nightly) always goes through
+            # its GitHub Releases asset fetcher, and wp-cli doesn't publish
+            # a `vnightly` release there — that install fails outright
+            # ("Failed to download wp-cli from
+            # .../releases/download/vnightly/wp-cli-nightly.phar") rather
+            # than falling back to stable. wp-cli's actual nightly builds
+            # are only ever hosted at wp-cli/builds' GitHub Pages, fetched
+            # directly below instead.
+            #
             # github-token: '' — setup-php writes its github-token input into
-            # Composer's global, job-wide auth.json while installing wp-cli
+            # Composer's global, job-wide auth.json while installing tools
             # (to avoid GitHub API rate limits during the install itself).
             # That file persists for the rest of the job, and the value it
             # writes fails Composer's own validation ("invalid characters")
             # — which only surfaces later, the moment something needs that
-            # auth. That something is the very next step: `wp package
-            # install` registers this package as a VCS (git) repository
-            # regardless of version (traced through
-            # get_package_by_shortened_identifier() in wp-cli's own source —
-            # it's not specific to :dev-main or being left unversioned), and
-            # a VCS clone is exactly when Composer reaches for that token.
-            # With none configured, it clones the (public) repo anonymously
-            # instead.
+            # auth. That something is the dist-archive-command install
+            # below: `wp package install` registers it as a VCS (git)
+            # repository regardless of version (traced through
+            # get_package_by_shortened_identifier() in wp-cli's own source),
+            # and a VCS clone is exactly when Composer reaches for that
+            # token. With none configured, it clones the (public) repo
+            # anonymously instead.
             - name: Setup PHP
               uses: shivammathur/setup-php@v2
               if: ${{ env.CURRENT_TAG != 'nightly' }}
               with:
                   php-version: latest
                   coverage: none
-                  tools: wp-cli
+                  tools: composer
                   github-token: ''
 
-            # Pinned to 3.1.0, not :@stable: 3.2.0+ requires
-            # wp-cli/wp-cli ^2.13, which has never actually been
-            # released (Packagist's newest wp-cli/wp-cli is 2.12.0, the
-            # same version `tools: wp-cli` above installs) — so :@stable
-            # resolves to a release that can never install here. 3.1.0 is
-            # the last release still requiring wp-cli/wp-cli ^2.
-            - name: Install compatible version of dist-archive-command
+            - name: Install WP-CLI (v3 nightly)
               if: ${{ env.CURRENT_TAG != 'nightly' }}
-              run: wp package install wp-cli/dist-archive-command:3.1.0
+              run: |
+                  curl -sSL -o "${RUNNER_TEMP}/wp-cli.phar" https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli-nightly.phar
+                  chmod +x "${RUNNER_TEMP}/wp-cli.phar"
+                  sudo mv "${RUNNER_TEMP}/wp-cli.phar" /usr/local/bin/wp
+                  wp --version
+
+            # :dev-main, not a tagged version: wp-cli nightly is on the
+            # unreleased v3 line, and no tagged dist-archive-command release
+            # has been updated for it yet — the newest, 3.2.2, still
+            # requires wp-cli/wp-cli ^2.13 (itself never actually released;
+            # see the removed pin this replaced). Only the main branch's
+            # composer.json requires wp-cli/wp-cli ^3.0, matching what's
+            # actually installed here.
+            - name: Install latest version of dist-archive-command
+              if: ${{ env.CURRENT_TAG != 'nightly' }}
+              run: wp package install wp-cli/dist-archive-command:dev-main
 
             - name: Setup Node
               uses: actions/setup-node@v7
