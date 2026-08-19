@@ -1,19 +1,28 @@
-.upload-from-phone-modal {
-	max-width: 26rem;
+/*
+ * The panel stands in for the block's media placeholder while a phone is on
+ * its way, so it has to sit comfortably at whatever width the block happens to
+ * be — full-width cover blocks and narrow sidebar-ish columns alike.
+ */
+.upload-from-phone-panel.components-placeholder {
+	min-height: 0;
 }
 
-.upload-from-phone-modal p {
-	margin: 0 0 1em;
+.upload-from-phone-panel__body {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 1.5em;
+	width: 100%;
 }
 
-.upload-from-phone-modal__qrcode {
-	margin: 0 0 1.5em;
-	text-align: center;
+.upload-from-phone-panel__qrcode {
+	flex: 0 0 auto;
 }
 
-.upload-from-phone-modal__qrcode svg {
-	width: 11rem;
-	height: 11rem;
+.upload-from-phone-panel__qrcode svg {
+	display: block;
+	width: 10rem;
+	height: 10rem;
 
 	/*
 	 * The code has to stay light-on-dark-free to remain scannable, so it keeps
@@ -23,23 +32,36 @@
 	border-radius: 4px;
 }
 
-.upload-from-phone-modal__link {
+/*
+ * Narrower than the flex basis below and the link field is unreadable anyway,
+ * so the QR code gets a row of its own instead of being squeezed alongside.
+ */
+.upload-from-phone-panel__details {
+	flex: 1 1 16rem;
+	min-width: 0;
+}
+
+.upload-from-phone-panel__link {
 	display: flex;
 	gap: 0.5em;
 	align-items: flex-start;
-	margin: 0 0 1.5em;
+	margin: 0 0 1em;
 }
 
-.upload-from-phone-modal__link .components-base-control {
+.upload-from-phone-panel__link .components-base-control {
 	flex-grow: 1;
 	min-width: 0;
 }
 
-.upload-from-phone-modal__status {
-	margin: 0 0 1.5em;
+.upload-from-phone-panel__status {
+	margin: 0;
 }
 
-.upload-from-phone-modal__actions {
+.upload-from-phone-panel__expiry {
+	margin: 0 0 1em;
+}
+
+.upload-from-phone-panel__actions {
 	display: flex;
-	justify-content: flex-end;
+	justify-content: flex-start;
 }
