@@ -53,73 +53,8 @@ function getSourceMapForEntry( entry: V8CoverageEntry, index?: number ) {
 	return entry;
 }
 
-/**
- * Redacts an upload request token before it reaches a CI log.
- *
- * The token is the entire authorisation for the upload endpoint and the
- * upload page alike, so it must not end up in retained, semi-public logs.
- *
- * @param url The URL to redact.
- */
-function redactToken( url: string ): string {
-	return url.replace( /[a-f0-9]{32}/g, '<redacted>' );
-}
-
-/**
- * Temporarily logs browser console/network activity to help diagnose a
- * WordPress-version-specific e2e failure.
- *
- * TODO: remove once that investigation is over.
- *
- * @param page The page to watch.
- */
-function logBrowserDiagnostics( page: Page ): void {
-	if ( process.env.E2E_DEBUG_LOG !== 'true' ) {
-		return;
-	}
-
-	page.on( 'console', ( message ) => {
-		if ( message.type() === 'error' || message.type() === 'warning' ) {
-			// eslint-disable-next-line no-console
-			console.log(
-				`[browser ${ message.type() }] ${ redactToken(
-					message.text()
-				) }`
-			);
-		}
-	} );
-	page.on( 'pageerror', ( error ) => {
-		// eslint-disable-next-line no-console
-		console.log(
-			`[browser pageerror] ${ redactToken(
-				error.stack ?? error.message
-			) }`
-		);
-	} );
-	page.on( 'requestfailed', ( request ) => {
-		// eslint-disable-next-line no-console
-		console.log(
-			`[browser requestfailed] ${ request.method() } ${ redactToken(
-				request.url()
-			) } — ${ request.failure()?.errorText }`
-		);
-	} );
-	page.on( 'response', ( response ) => {
-		if ( response.status() >= 400 ) {
-			// eslint-disable-next-line no-console
-			console.log(
-				`[browser response] ${ response.status() } ${ redactToken(
-					response.url()
-				) }`
-			);
-		}
-	} );
-}
-
 export const test = base.extend< E2EFixture, {} >( {
 	page: async ( { page, browserName }, use ) => {
-		logBrowserDiagnostics( page );
-
 		if (
 			browserName !== 'chromium' ||
 			process.env.COLLECT_COVERAGE !== 'true'
@@ -168,8 +103,6 @@ export const test = base.extend< E2EFixture, {} >( {
 		const secondPage = await context.newPage();
 
 		try {
-			logBrowserDiagnostics( secondPage );
-
 			if (
 				browserName !== 'chromium' ||
 				process.env.COLLECT_COVERAGE !== 'true'

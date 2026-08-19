@@ -395,6 +395,13 @@ class Test_Functions extends WP_UnitTestCase {
 			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
 			wp_deregister_script( 'wp-upload-media' );
 
+			// register_assets() may have registered upload-from-phone-view with a
+			// dependency on wp-upload-media while the filter was active. WordPress
+			// doesn't reset $wp_scripts between tests, so left alone that dangling
+			// dependency would carry over to every test that runs afterwards.
+			wp_deregister_script( 'upload-from-phone-view' );
+			register_assets();
+
 			$this->reset_client_side_processing = false;
 		}
 

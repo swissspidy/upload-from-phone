@@ -9,7 +9,7 @@
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  * Text Domain:       upload-from-phone
- * Requires at least: 6.8
+ * Requires at least: 7.1
  * Requires PHP:      8.0
  *
  * @package UploadFromPhone

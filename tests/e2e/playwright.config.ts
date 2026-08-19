@@ -48,11 +48,5 @@ export default defineConfig( {
 		...( process.env.COLLECT_COVERAGE === 'true'
 			? [ coverageReporter ]
 			: [] ),
-		// The base config's `github` reporter (used in CI) doesn't surface a
-		// test's console output the way `list` does, which is what the
-		// diagnostic logging in fixtures/index.ts relies on.
-		...( process.env.E2E_DEBUG_LOG === 'true'
-			? ( [ [ 'list' ] ] as ReporterDescription[] )
-			: [] ),
 	],
 } );
