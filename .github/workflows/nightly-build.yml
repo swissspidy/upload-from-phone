@@ -37,6 +37,20 @@ jobs:
             # .../releases/download/vnightly/wp-cli-nightly.phar") rather than
             # falling back to stable, so this has to stay pinned to the
             # ordinary release channel.
+            # github-token: '' — setup-php writes its github-token input into
+            # Composer's global, job-wide auth.json while installing wp-cli
+            # (to avoid GitHub API rate limits during the install itself).
+            # That file persists for the rest of the job, and the value it
+            # writes fails Composer's own validation ("invalid characters")
+            # — which only surfaces later, the moment something needs that
+            # auth. That something is the very next step: `wp package
+            # install` registers this package as a VCS (git) repository
+            # regardless of version (traced through
+            # get_package_by_shortened_identifier() in wp-cli's own source —
+            # it's not specific to :dev-main or being left unversioned), and
+            # a VCS clone is exactly when Composer reaches for that token.
+            # With none configured, it clones the (public) repo anonymously
+            # instead.
             - name: Setup PHP
               uses: shivammathur/setup-php@v2
               if: ${{ env.CURRENT_TAG != 'nightly' }}
@@ -44,16 +58,17 @@ jobs:
                   php-version: latest
                   coverage: none
                   tools: wp-cli
+                  github-token: ''
 
-            # Deliberately not pinned to :dev-main: that forces wp-cli's Composer
-            # to register the package as a VCS (git) repository, which needs a
-            # github-oauth token, and setup-php's implicit one doesn't pass
-            # Composer's own validation ("invalid characters"). Left unpinned,
-            # it resolves via Packagist to the latest tagged release instead —
-            # a plain dist-zip download, no token involved.
-            - name: Install latest version of dist-archive-command
+            # Pinned to 3.1.0, not :@stable: 3.2.0+ requires
+            # wp-cli/wp-cli ^2.13, which has never actually been
+            # released (Packagist's newest wp-cli/wp-cli is 2.12.0, the
+            # same version `tools: wp-cli` above installs) — so :@stable
+            # resolves to a release that can never install here. 3.1.0 is
+            # the last release still requiring wp-cli/wp-cli ^2.
+            - name: Install compatible version of dist-archive-command
               if: ${{ env.CURRENT_TAG != 'nightly' }}
-              run: wp package install wp-cli/dist-archive-command
+              run: wp package install wp-cli/dist-archive-command:3.1.0
 
             - name: Setup Node
               uses: actions/setup-node@v7
