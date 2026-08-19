@@ -47,13 +47,15 @@ jobs:
                   # To get CSS source maps.
                   NODE_ENV: development
 
-            # The stable release has a branch on the git mirror; a not-yet-released
-            # RC doesn't, so it's fetched from the same zip WordPress.org serves for
-            # that build instead.
+            # Fetched from the exact zip WordPress.org serves for each build, rather
+            # than the git mirror's branch: a branch tracks whatever unreleased
+            # commits have landed since, not the released version a real site would
+            # actually run — which is what broke the 6.8 leg (a WP-core-internal
+            # error, not from this plugin, that only reproduced against branch HEAD).
             - name: Start WordPress
               run: npm run wp-env start
               env:
-                  WP_ENV_CORE: ${{ matrix.wordpress == '6.8' && format('WordPress/WordPress#{0}', matrix.wordpress) || format('https://wordpress.org/wordpress-{0}.zip', matrix.wordpress) }}
+                  WP_ENV_CORE: https://wordpress.org/wordpress-${{ matrix.wordpress }}.zip
 
             - name: Run tests
               run: npm run test:e2e
