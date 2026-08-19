@@ -9,6 +9,8 @@ import type { ComponentType, ReactElement, ReactNode } from 'react';
  * Internal dependencies
  */
 import { UploadFromPhoneButton } from './upload-from-phone-button';
+import { UploadRequestPanel } from './panel';
+import { useUploadRequest } from './use-upload-request';
 
 interface MediaPlaceholderProps {
 	allowedTypes?: string[];
@@ -21,11 +23,31 @@ interface MediaPlaceholderProps {
 }
 
 /**
+ * Normalises the `accept` prop, which blocks pass as either a string or an array.
+ *
+ * @param accept The value to normalise.
+ */
+function toArray( accept?: string | string[] ): string[] | undefined {
+	if ( ! accept ) {
+		return undefined;
+	}
+
+	return Array.isArray( accept )
+		? accept
+		: accept.split( ',' ).map( ( value ) => value.trim() );
+}
+
+/**
  * Adds an "Upload from phone" button to every media placeholder in the editor.
  *
  * Hooking the shared placeholder rather than individual blocks means image,
  * video, audio, gallery, cover, and any third-party block built on the same
  * component all get the feature without this plugin knowing about them.
+ *
+ * It also puts this component exactly where the waiting has to be shown, which
+ * is what lets the QR code live inside the block instead of in a dialog over
+ * the editor. Each placeholder owns its own request, so several blocks can be
+ * waiting on different phones at once without knowing about each other.
  */
 addFilter(
 	'editor.MediaPlaceholder',
@@ -44,22 +66,43 @@ addFilter(
 				children,
 			} = props;
 
+			const isMultiple = Boolean( multiple );
+
+			const { uploadRequest, isCreating, create, cancel } =
+				useUploadRequest( {
+					allowedTypes,
+					accept: toArray( accept ),
+					multiple: isMultiple,
+					onSelect: ( media ) =>
+						onSelect?.( isMultiple ? media : media[ 0 ] ),
+				} );
+
 			// Drop zones and other button-less placeholders have nothing to add to.
 			if ( disableMediaButtons || ! onSelect ) {
 				return <MediaPlaceholder { ...props } />;
 			}
 
-			const isMultiple = Boolean( multiple );
+			/*
+			 * While a phone is on its way, the panel stands in for the
+			 * placeholder. Replacing it rather than rendering alongside it
+			 * keeps the block from offering two ways to fill itself at once,
+			 * and leaves the block toolbar and inspector untouched — the rest
+			 * of the post stays as editable as it was.
+			 */
+			if ( uploadRequest ) {
+				return (
+					<UploadRequestPanel
+						uploadRequest={ uploadRequest }
+						onCancel={ cancel }
+					/>
+				);
+			}
 
 			const button = (
 				<MediaUploadCheck key="upload-from-phone">
 					<UploadFromPhoneButton
-						allowedTypes={ allowedTypes }
-						accept={ accept }
-						multiple={ isMultiple }
-						onSelect={ ( media ) =>
-							onSelect( isMultiple ? media : media[ 0 ] )
-						}
+						isBusy={ isCreating }
+						onClick={ create }
 					/>
 				</MediaUploadCheck>
 			);
