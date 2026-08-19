@@ -269,12 +269,26 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @covers \UploadFromPhone\has_client_side_processing
 	 */
 	public function test_client_side_processing_requires_both_the_filter_and_the_script(): void {
+		// WordPress bundles wp-upload-media as a core script as of WP 7.1, so it
+		// may already be registered here — deregister it to actually exercise
+		// the "filter without the script" branch, and restore the original
+		// registration afterwards rather than guess at its parameters.
+		$original_registration = wp_scripts()->registered['wp-upload-media'] ?? null;
+
+		if ( $original_registration ) {
+			wp_deregister_script( 'wp-upload-media' );
+		}
+
 		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
 
 		try {
 			$this->assertFalse( has_client_side_processing() );
 		} finally {
 			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+
+			if ( $original_registration ) {
+				wp_scripts()->registered['wp-upload-media'] = $original_registration;
+			}
 		}
 
 		$this->enable_client_side_processing();
