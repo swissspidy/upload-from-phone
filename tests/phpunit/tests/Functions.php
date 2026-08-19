@@ -194,6 +194,15 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @covers \UploadFromPhone\get_asset_meta
 	 */
 	public function test_register_assets_registers_scripts_and_styles(): void {
+		// register_assets() already ran once via the `init` hook fired during
+		// bootstrap — wp_register_script()/wp_register_style() are no-ops for an
+		// already-registered handle, so this would pass on bootstrap state alone
+		// without deregistering first.
+		wp_deregister_script( 'upload-from-phone-editor' );
+		wp_deregister_script( 'upload-from-phone-view' );
+		wp_deregister_style( 'upload-from-phone-editor' );
+		wp_deregister_style( 'upload-from-phone-view' );
+
 		register_assets();
 
 		$this->assertTrue( wp_script_is( 'upload-from-phone-editor', 'registered' ) );
@@ -234,7 +243,7 @@ class Test_Functions extends WP_UnitTestCase {
 		$meta = get_asset_meta( 'does-not-exist' );
 
 		$this->assertSame( [], $meta['dependencies'] );
-		$this->assertIsString( $meta['version'] );
+		$this->assertSame( \UploadFromPhone\VERSION, $meta['version'] );
 	}
 
 	/**
@@ -252,8 +261,12 @@ class Test_Functions extends WP_UnitTestCase {
 	 */
 	public function test_client_side_processing_requires_both_the_filter_and_the_script(): void {
 		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
-		$this->assertFalse( has_client_side_processing() );
-		remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+
+		try {
+			$this->assertFalse( has_client_side_processing() );
+		} finally {
+			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+		}
 
 		$this->enable_client_side_processing();
 		$this->assertTrue( has_client_side_processing() );
@@ -271,6 +284,7 @@ class Test_Functions extends WP_UnitTestCase {
 		enqueue_block_editor_assets();
 
 		$this->assertFalse( wp_script_is( 'upload-from-phone-editor', 'enqueued' ) );
+		$this->assertFalse( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
 
 		wp_set_current_user( self::$admin_id );
 

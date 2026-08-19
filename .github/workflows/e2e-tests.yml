@@ -65,7 +65,10 @@ jobs:
 
             - name: Upload code coverage report
               uses: codecov/codecov-action@v7.0.0
-              if: ${{ matrix.wordpress == '6.8' }}
+              # The reporter writes the coverage report before failed tests fail
+              # the step above, so a red run shouldn't lose it — only skip when
+              # coverage genuinely wasn't collected for this leg.
+              if: ${{ always() && matrix.wordpress == '6.8' && hashFiles('artifacts/e2e-coverage/coverage/codecov.json') != '' }}
               with:
                   files: artifacts/e2e-coverage/coverage/codecov.json
                   flags: e2e

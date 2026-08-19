@@ -103,6 +103,11 @@ jobs:
         run: ./node_modules/.bin/wp-env start ${{ matrix.coverage && '--xdebug=coverage' || '' }}
         env:
           WP_ENV_CORE: ${{ matrix.wordpress == 'latest' && 'WordPress/WordPress' || format('WordPress/WordPress#{0}', matrix.wordpress) }}
+          # PHPUnit runs inside the tests-cli container, not on the runner —
+          # setup-php's `matrix.php` only affects the host, so the container
+          # needs its own PHP version pinned or every leg would silently run
+          # whatever PHP wp-env's image defaults to.
+          WP_ENV_PHP_VERSION: ${{ matrix.php }}
 
       - name: Create coverage output directory
         if: ${{ matrix.coverage }}
