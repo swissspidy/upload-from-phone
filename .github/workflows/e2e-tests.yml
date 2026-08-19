@@ -16,8 +16,13 @@ permissions: {}
 
 jobs:
     e2e-tests:
-        name: E2E Tests
+        name: E2E Tests (WordPress ${{ matrix.wordpress }})
         runs-on: ubuntu-latest
+
+        strategy:
+            fail-fast: false
+            matrix:
+                wordpress: ['6.8', '7.1-RC4']
 
         steps:
             - name: Checkout
@@ -42,16 +47,25 @@ jobs:
                   # To get CSS source maps.
                   NODE_ENV: development
 
+            # The stable release has a branch on the git mirror; a not-yet-released
+            # RC doesn't, so it's fetched from the same zip WordPress.org serves for
+            # that build instead.
             - name: Start WordPress
               run: npm run wp-env start
+              env:
+                  WP_ENV_CORE: ${{ matrix.wordpress == '6.8' && format('WordPress/WordPress#{0}', matrix.wordpress) || format('https://wordpress.org/wordpress-{0}.zip', matrix.wordpress) }}
 
             - name: Run tests
               run: npm run test:e2e
               env:
-                  COLLECT_COVERAGE: true
+                  # Only collected against the stable release — an RC's coverage
+                  # numbers aren't meaningful to track over time, and one upload per
+                  # push is all codecov needs.
+                  COLLECT_COVERAGE: ${{ matrix.wordpress == '6.8' }}
 
             - name: Upload code coverage report
               uses: codecov/codecov-action@v7.0.0
+              if: ${{ matrix.wordpress == '6.8' }}
               with:
                   files: artifacts/e2e-coverage/coverage/codecov.json
                   flags: e2e
@@ -61,6 +75,6 @@ jobs:
               uses: actions/upload-artifact@v7
               if: always()
               with:
-                  name: failures-artifacts
+                  name: failures-artifacts-${{ matrix.wordpress }}
                   path: artifacts
                   if-no-files-found: ignore

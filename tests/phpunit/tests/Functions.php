@@ -212,6 +212,13 @@ class Test_Functions extends WP_UnitTestCase {
 	public function test_register_assets_adds_upload_media_dependency_when_client_side_processing_is_on(): void {
 		$this->enable_client_side_processing();
 
+		// register_assets() already ran once via the `init` hook fired during
+		// bootstrap, before the filter above existed — wp_register_script() is
+		// a no-op for an already-registered handle, so the handle has to be
+		// deregistered first or this would still see the original, filterless
+		// dependency list.
+		wp_deregister_script( 'upload-from-phone-view' );
+
 		register_assets();
 
 		$view = wp_scripts()->registered['upload-from-phone-view'];
