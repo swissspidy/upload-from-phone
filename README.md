@@ -27,7 +27,7 @@ Use [WordPress Playground](https://wordpress.org/playground/) to try this plugin
 
 ## How it works
 
-While editing a post, **Upload from phone** appears on any media block. Clicking it creates a short-lived upload request and shows its link as a QR code.
+While editing a post, **Upload from phone** appears on any media block. Clicking it creates a short-lived upload request and shows its link as a QR code, in place of the block's own placeholder.
 
 An upload request is a post of a private, UI-less post type whose slug is a 128-bit random token. That token is the only credential involved, so it is treated as one:
 
@@ -44,11 +44,13 @@ Unknown, expired, and inaccessible tokens all return the same 404, so the endpoi
 
 The editor polls the request until the phone stops sending, hands the media to the block, and revokes the link — including when the editor is closed mid-upload.
 
+Waiting happens inside the block, not in a dialog over the editor. Someone else's phone, on someone else's signal, is not worth holding a post hostage to: the rest of the post stays editable while a link is outstanding, the block keeps its toolbar and inspector, and several blocks can each be waiting on a link of their own. Each block shows what has arrived so far and how much longer its link is good for, and the media drops into that block whenever it lands.
+
 ## Architecture notes
 
 **The core attachments controller is left alone.** Everything lives under this plugin's own `upload-from-phone/v1` REST namespace. Subclassing `WP_REST_Attachments_Controller` would put the plugin in conflict with every other plugin that does the same, and would widen a core endpoint's permission model for the sake of one feature.
 
-**One editor integration, not one per block.** The `editor.MediaPlaceholder` filter covers Image, Video, Audio, Gallery, Cover, File, and any third-party block built on the same component, without this plugin knowing any of their names.
+**One editor integration, not one per block.** The `editor.MediaPlaceholder` filter covers Image, Video, Audio, Gallery, Cover, File, and any third-party block built on the same component, without this plugin knowing any of their names. It also lands exactly where the waiting has to be shown, so the QR code can take the placeholder's place without a per-block registry of who is waiting, and without wrapping `BlockEdit` — which would mean replacing the whole block, controls and all, to change the one part of it that is empty.
 
 **Media processing is WordPress's job, and off by default.** The upload page knows how to route files through `wp-upload-media`, WordPress's client-side pipeline, but does not do so unless asked. That pipeline pulls in `wp-components`, `wp-preferences`, and the image and video conversion scaffolding — a serious download for a page whose entire job is a file picker, on a device very likely to be on mobile data. The case it would help most with, HEIC from an iPhone, is already handled: iOS converts HEIC to JPEG on its way through a file input.
 
