@@ -29,7 +29,10 @@ use UploadFromPhone\Upload_Request;
 $ufph_upload_requests = get_posts(
 	[
 		'post_type'      => Upload_Request::POST_TYPE,
-		'post_status'    => 'any',
+		// Not 'any': it excludes trash and auto-draft (both have
+		// exclude_from_search set), which would leave exactly the kind of
+		// leftover posts this file exists to clean up.
+		'post_status'    => get_post_stati(),
 		'posts_per_page' => -1,
 		'fields'         => 'ids',
 	]
