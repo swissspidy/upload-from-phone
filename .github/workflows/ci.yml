@@ -107,4 +107,5 @@ jobs:
         if: ${{ matrix.wordpress == 'latest' }}
         with:
           files: artifacts/coverage.xml
+          flags: php
           token: ${{ secrets.CODECOV_TOKEN }}

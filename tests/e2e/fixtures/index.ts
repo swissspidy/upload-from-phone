@@ -1,6 +1,10 @@
 /**
  * External dependencies
  */
+import { readFileSync, existsSync } from 'node:fs';
+
+import { addCoverageReport } from 'monocart-reporter';
+import type { V8CoverageEntry } from 'monocart-coverage-reports';
 import type { Page } from '@playwright/test';
 
 /**
@@ -17,16 +21,133 @@ type E2EFixture = {
 	secondPage: Page;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function getSourceMapForEntry( entry: V8CoverageEntry, index?: number ) {
+	if ( entry.sourceMap ) {
+		return entry;
+	}
+	// Read the sourcemap manually for build assets that don't inline one.
+	if ( entry.url.includes( 'plugins/upload-from-phone/build/' ) ) {
+		let filePath = entry.url;
+		// Turn localhost-8889/wp-content/plugins/upload-from-phone/build/editor.js?ver=abc123 into build/editor.js?ver=abc123.
+		const i = filePath.indexOf( 'build/' );
+		if ( i >= 0 ) {
+			filePath = filePath.slice( i );
+		}
+
+		// Turn build/editor.js?ver=abc123 into build/editor.js.
+		const j = filePath.indexOf( '?ver=' );
+		if ( j >= 0 ) {
+			filePath = filePath.substring( 0, j );
+		}
+
+		if ( ! existsSync( `${ filePath }.map` ) ) {
+			return entry;
+		}
+
+		entry.sourceMap = JSON.parse(
+			readFileSync( `${ filePath }.map` ).toString( 'utf-8' )
+		);
+	}
+
+	return entry;
+}
+
 export const test = base.extend< E2EFixture, {} >( {
-	secondPage: async ( { browser }, use ) => {
+	page: async ( { page, browserName }, use ) => {
+		if (
+			browserName !== 'chromium' ||
+			process.env.COLLECT_COVERAGE !== 'true'
+		) {
+			// This is Playwright's own fixture convention, not a React hook — the
+			// callback just happens to be named `use`, which is enough to trip a
+			// lint rule that assumes otherwise.
+			// eslint-disable-next-line react-hooks/rules-of-hooks
+			return use( page );
+		}
+
+		await Promise.all( [
+			page.coverage.startJSCoverage( {
+				resetOnNavigation: false,
+			} ),
+			page.coverage.startCSSCoverage( {
+				resetOnNavigation: false,
+			} ),
+		] );
+
+		// eslint-disable-next-line react-hooks/rules-of-hooks
+		await use( page );
+
+		const [ jsCoverage, cssCoverage ]: [
+			V8CoverageEntry[],
+			V8CoverageEntry[],
+		] = await Promise.all( [
+			page.coverage.stopJSCoverage(),
+			page.coverage.stopCSSCoverage(),
+		] );
+
+		// Manually resolve the source map if it's missing.
+		// See https://github.com/cenfun/monocart-coverage-reports#manually-resolve-the-sourcemap.
+		jsCoverage.forEach( ( entry: V8CoverageEntry, index: number ) => {
+			jsCoverage[ index ] = getSourceMapForEntry( entry );
+		} );
+		cssCoverage.forEach( ( entry: V8CoverageEntry, index: number ) => {
+			cssCoverage[ index ] = getSourceMapForEntry( entry );
+		} );
+
+		const coverageList = [ ...jsCoverage, ...cssCoverage ];
+		await addCoverageReport( coverageList, test.info() );
+	},
+	secondPage: async ( { browserName, browser }, use ) => {
 		const context = await browser.newContext();
 		const secondPage = await context.newPage();
 
-		// This is Playwright's own fixture convention, not a React hook — the
-		// callback just happens to be named `use`, which is enough to trip a
-		// lint rule that assumes otherwise.
+		if (
+			browserName !== 'chromium' ||
+			process.env.COLLECT_COVERAGE !== 'true'
+		) {
+			// This is Playwright's own fixture convention, not a React hook — the
+			// callback just happens to be named `use`, which is enough to trip a
+			// lint rule that assumes otherwise.
+			// eslint-disable-next-line react-hooks/rules-of-hooks
+			await use( secondPage );
+
+			await context.close();
+
+			return;
+		}
+
+		await Promise.all( [
+			secondPage.coverage.startJSCoverage( {
+				resetOnNavigation: false,
+			} ),
+			secondPage.coverage.startCSSCoverage( {
+				resetOnNavigation: false,
+			} ),
+		] );
+
 		// eslint-disable-next-line react-hooks/rules-of-hooks
 		await use( secondPage );
+
+		const [ jsCoverage, cssCoverage ]: [
+			V8CoverageEntry[],
+			V8CoverageEntry[],
+		] = await Promise.all( [
+			secondPage.coverage.stopJSCoverage(),
+			secondPage.coverage.stopCSSCoverage(),
+		] );
+
+		// Manually resolve the source map if it's missing.
+		// See https://github.com/cenfun/monocart-coverage-reports#manually-resolve-the-sourcemap.
+		jsCoverage.forEach( ( entry: V8CoverageEntry, index: number ) => {
+			jsCoverage[ index ] = getSourceMapForEntry( entry );
+		} );
+		cssCoverage.forEach( ( entry: V8CoverageEntry, index: number ) => {
+			cssCoverage[ index ] = getSourceMapForEntry( entry );
+		} );
+
+		const coverageList = [ ...jsCoverage, ...cssCoverage ];
+		await addCoverageReport( coverageList, test.info() );
 
 		await context.close();
 	},

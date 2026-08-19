@@ -13,8 +13,14 @@ use UploadFromPhone\Upload_Request;
 use WP_UnitTestCase;
 
 use function UploadFromPhone\delete_expired_requests;
+use function UploadFromPhone\enqueue_block_editor_assets;
 use function UploadFromPhone\filter_cron_schedules;
+use function UploadFromPhone\filter_template_include;
+use function UploadFromPhone\get_asset_meta;
 use function UploadFromPhone\get_upload_page_data;
+use function UploadFromPhone\has_client_side_processing;
+use function UploadFromPhone\print_upload_page_assets;
+use function UploadFromPhone\register_assets;
 
 /**
  * Tests for the plugin's functions.
@@ -181,6 +187,165 @@ class Test_Functions extends WP_UnitTestCase {
 		$data = get_upload_page_data( $upload_request );
 
 		$this->assertSame( get_allowed_mime_types( self::$admin_id ), $data['allowedMimeTypes'] );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\register_assets
+	 * @covers \UploadFromPhone\get_asset_meta
+	 */
+	public function test_register_assets_registers_scripts_and_styles(): void {
+		register_assets();
+
+		$this->assertTrue( wp_script_is( 'upload-from-phone-editor', 'registered' ) );
+		$this->assertTrue( wp_script_is( 'upload-from-phone-view', 'registered' ) );
+		$this->assertTrue( wp_style_is( 'upload-from-phone-editor', 'registered' ) );
+		$this->assertTrue( wp_style_is( 'upload-from-phone-view', 'registered' ) );
+	}
+
+	/**
+	 * The upload page routes its media queue through the global rather than an
+	 * import, so the dependency has to be added by hand whenever the queue is
+	 * actually in play.
+	 *
+	 * @covers \UploadFromPhone\register_assets
+	 */
+	public function test_register_assets_adds_upload_media_dependency_when_client_side_processing_is_on(): void {
+		$this->enable_client_side_processing();
+
+		register_assets();
+
+		$view = wp_scripts()->registered['upload-from-phone-view'];
+
+		$this->assertContains( 'wp-data', $view->deps );
+		$this->assertContains( 'wp-upload-media', $view->deps );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\get_asset_meta
+	 */
+	public function test_get_asset_meta_falls_back_when_the_build_file_is_missing(): void {
+		$meta = get_asset_meta( 'does-not-exist' );
+
+		$this->assertSame( [], $meta['dependencies'] );
+		$this->assertIsString( $meta['version'] );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\has_client_side_processing
+	 */
+	public function test_client_side_processing_is_off_by_default(): void {
+		$this->assertFalse( has_client_side_processing() );
+	}
+
+	/**
+	 * The filter alone must not be enough — the queue script has to actually be
+	 * registered, or turning on the filter would enqueue a dependency on nothing.
+	 *
+	 * @covers \UploadFromPhone\has_client_side_processing
+	 */
+	public function test_client_side_processing_requires_both_the_filter_and_the_script(): void {
+		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+		$this->assertFalse( has_client_side_processing() );
+		remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+
+		$this->enable_client_side_processing();
+		$this->assertTrue( has_client_side_processing() );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\enqueue_block_editor_assets
+	 */
+	public function test_block_editor_assets_require_upload_permission(): void {
+		register_assets();
+
+		$subscriber_id = self::factory()->user->create( [ 'role' => 'subscriber' ] );
+		wp_set_current_user( $subscriber_id );
+
+		enqueue_block_editor_assets();
+
+		$this->assertFalse( wp_script_is( 'upload-from-phone-editor', 'enqueued' ) );
+
+		wp_set_current_user( self::$admin_id );
+
+		enqueue_block_editor_assets();
+
+		$this->assertTrue( wp_script_is( 'upload-from-phone-editor', 'enqueued' ) );
+		$this->assertTrue( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
+
+		wp_dequeue_script( 'upload-from-phone-editor' );
+		wp_dequeue_style( 'upload-from-phone-editor' );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\print_upload_page_assets
+	 */
+	public function test_upload_page_assets_are_only_printed_once_registered(): void {
+		wp_deregister_script( 'upload-from-phone-view' );
+
+		ob_start();
+		print_upload_page_assets();
+		$this->assertSame( '', ob_get_clean() );
+
+		register_assets();
+
+		ob_start();
+		print_upload_page_assets();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'upload-from-phone-view', $output );
+	}
+
+	/**
+	 * A request reached through its own link resolves to the upload page.
+	 *
+	 * @covers \UploadFromPhone\filter_template_include
+	 */
+	public function test_template_include_serves_the_upload_page_for_a_matching_token(): void {
+		$upload_request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $upload_request );
+
+		$this->go_to( $upload_request->get_url() );
+
+		$template = filter_template_include( 'placeholder.php' );
+
+		$this->assertStringContainsString( 'templates/upload-page.php', $template );
+		$this->assertFalse( is_404() );
+	}
+
+	/**
+	 * WordPress will resolve any publicly queryable post by ID. Reaching a live
+	 * upload request that way — rather than by following its link — must 404,
+	 * or the token stops being the thing that grants access.
+	 *
+	 * @covers \UploadFromPhone\filter_template_include
+	 */
+	public function test_template_include_404s_when_the_post_is_reached_by_id(): void {
+		$upload_request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $upload_request );
+
+		$this->go_to(
+			add_query_arg(
+				[
+					'p'         => $upload_request->get_post()->ID,
+					'post_type' => Upload_Request::POST_TYPE,
+				],
+				home_url( '/' )
+			)
+		);
+
+		$template = filter_template_include( 'placeholder.php' );
+
+		$this->assertSame( get_404_template(), $template );
+		$this->assertTrue( is_404() );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\filter_template_include
+	 */
+	public function test_template_include_leaves_unrelated_requests_alone(): void {
+		$this->go_to( home_url( '/' ) );
+
+		$this->assertSame( 'placeholder.php', filter_template_include( 'placeholder.php' ) );
 	}
 
 	/**

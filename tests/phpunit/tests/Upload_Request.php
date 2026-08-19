@@ -173,4 +173,129 @@ class Test_Upload_Request extends WP_UnitTestCase {
 		$this->assertNotNull( $parent );
 		$this->assertSame( $post_id, $parent->ID );
 	}
+
+	/**
+	 * @covers ::get_parent
+	 */
+	public function test_request_without_a_post_has_no_parent(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$this->assertNull( $request->get_parent() );
+	}
+
+	/**
+	 * @covers ::get_url
+	 */
+	public function test_url_points_at_the_upload_page(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$this->assertStringContainsString( $request->get_token(), $request->get_url() );
+	}
+
+	/**
+	 * @covers ::get_author_id
+	 */
+	public function test_author_id_is_whoever_created_the_request(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$this->assertSame( self::$admin_id, $request->get_author_id() );
+	}
+
+	/**
+	 * @covers ::get_accept
+	 */
+	public function test_accept_returns_the_stored_file_type_specifiers(): void {
+		$request = Upload_Request::create( [ 'accept' => [ 'image/*', '.heic' ] ] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$this->assertSame( [ 'image/*', '.heic' ], $request->get_accept() );
+	}
+
+	/**
+	 * @covers ::get_accept
+	 */
+	public function test_accept_is_empty_by_default(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$this->assertSame( [], $request->get_accept() );
+	}
+
+	/**
+	 * @covers ::from_post
+	 */
+	public function test_from_post_wraps_an_upload_request_post(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$found = Upload_Request::from_post( $request->get_post() );
+
+		$this->assertInstanceOf( Upload_Request::class, $found );
+		$this->assertSame( $request->get_token(), $found->get_token() );
+	}
+
+	/**
+	 * A post that merely happens to share an ID is not an upload request —
+	 * `from_post()` must check the post type, not just accept whatever it is given.
+	 *
+	 * @covers ::from_post
+	 */
+	public function test_from_post_rejects_posts_of_another_type(): void {
+		$post = self::factory()->post->create_and_get();
+
+		$this->assertNull( Upload_Request::from_post( $post ) );
+	}
+
+	/**
+	 * @covers ::get_max_files
+	 */
+	public function test_multi_file_requests_default_to_twenty_files(): void {
+		$request = Upload_Request::create( [ 'multiple' => true ] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$this->assertSame( 20, $request->get_max_files() );
+	}
+
+	/**
+	 * @covers ::get_max_files
+	 */
+	public function test_max_files_is_filterable_but_never_less_than_one(): void {
+		$request = Upload_Request::create( [ 'multiple' => true ] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		add_filter( 'upload_from_phone_max_files', static fn () => 5 );
+		$this->assertSame( 5, $request->get_max_files() );
+		remove_all_filters( 'upload_from_phone_max_files' );
+
+		add_filter( 'upload_from_phone_max_files', static fn () => -3 );
+		$this->assertSame( 1, $request->get_max_files() );
+		remove_all_filters( 'upload_from_phone_max_files' );
+	}
+
+	/**
+	 * @covers ::delete
+	 */
+	public function test_delete_fires_an_action_and_removes_the_post(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+		$post_id = $request->get_post()->ID;
+
+		$fired = false;
+		add_action(
+			'upload_from_phone_request_deleted',
+			static function ( $post ) use ( &$fired, $post_id ): void {
+				$fired = $post->ID === $post_id;
+			}
+		);
+
+		$request->delete();
+
+		$this->assertTrue( $fired );
+		$this->assertNull( get_post( $post_id ) );
+
+		remove_all_actions( 'upload_from_phone_request_deleted' );
+	}
 }
