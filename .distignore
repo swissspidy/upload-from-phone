@@ -1,9 +1,11 @@
 .distignore
 .editorconfig
 .git
+.gitattributes
 .github
 .gitignore
 .wordpress-org
+.nvmrc
 .wp-env.json
 bin
 composer.json
