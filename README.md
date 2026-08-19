@@ -15,7 +15,7 @@ Install and activate the latest nightly build on your WordPress website, open a 
 
 [![Download latest nightly build](https://img.shields.io/badge/Download%20latest%20nightly-24282D?style=for-the-badge&logo=Files&logoColor=ffffff)](https://swissspidy.github.io/upload-from-phone/nightly.zip)
 
-Note: Requires **WordPress 6.8+** and **PHP 8.0+**.
+Note: Requires **WordPress 7.1+** and **PHP 8.0+**.
 
 ### Using WordPress Playground
 

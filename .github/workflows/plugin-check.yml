@@ -67,7 +67,13 @@ jobs:
                   mkdir dist
                   unzip upload-from-phone.zip -d dist
 
+            # Defaults to the current stable release, which is older than the
+            # plugin's minimum supported WordPress version while that version
+            # is still an RC — WordPress core itself then refuses to activate
+            # the plugin at all. trunk tracks core development and stays
+            # ahead of any unreleased "Requires at least".
             - name: Run Plugin Check
               uses: wordpress/plugin-check-action@v1
               with:
                   build-dir: './dist/upload-from-phone'
+                  wp-version: 'trunk'

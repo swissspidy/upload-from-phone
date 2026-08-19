@@ -2,8 +2,8 @@
 
 Contributors:      swissspidy
 Tags:              media, upload, mobile, images, qr code
-Requires at least: 6.8
-Tested up to:      7.0
+Requires at least: 7.1
+Tested up to:      7.1
 Requires PHP:      8.0
 Stable tag:        0.1.0
 License:           GPLv2 or later

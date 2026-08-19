@@ -58,6 +58,7 @@
 		"@wordpress/media-utils": "^5.53.0",
 		"@wordpress/notices": "^5.53.0",
 		"@wordpress/scripts": "^34.1.0",
+		"monocart-reporter": "^2.9.23",
 		"typescript": "~6.0.3"
 	}
 }

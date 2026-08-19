@@ -13,8 +13,14 @@ use UploadFromPhone\Upload_Request;
 use WP_UnitTestCase;
 
 use function UploadFromPhone\delete_expired_requests;
+use function UploadFromPhone\enqueue_block_editor_assets;
 use function UploadFromPhone\filter_cron_schedules;
+use function UploadFromPhone\filter_template_include;
+use function UploadFromPhone\get_asset_meta;
 use function UploadFromPhone\get_upload_page_data;
+use function UploadFromPhone\has_client_side_processing;
+use function UploadFromPhone\print_upload_page_assets;
+use function UploadFromPhone\register_assets;
 
 /**
  * Tests for the plugin's functions.
@@ -33,6 +39,15 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @var bool
 	 */
 	private bool $reset_client_side_processing = false;
+
+	/**
+	 * Whether enable_client_side_processing() registered `wp-upload-media`
+	 * itself, as opposed to it already being registered (e.g. by WordPress
+	 * core, which bundles it as of WP 7.1) before the test ran.
+	 *
+	 * @var bool
+	 */
+	private bool $registered_wp_upload_media_script = false;
 
 	/**
 	 * Sets up shared fixtures.
@@ -184,6 +199,200 @@ class Test_Functions extends WP_UnitTestCase {
 	}
 
 	/**
+	 * @covers \UploadFromPhone\register_assets
+	 * @covers \UploadFromPhone\get_asset_meta
+	 */
+	public function test_register_assets_registers_scripts_and_styles(): void {
+		// register_assets() already ran once via the `init` hook fired during
+		// bootstrap — wp_register_script()/wp_register_style() are no-ops for an
+		// already-registered handle, so this would pass on bootstrap state alone
+		// without deregistering first.
+		wp_deregister_script( 'upload-from-phone-editor' );
+		wp_deregister_script( 'upload-from-phone-view' );
+		wp_deregister_style( 'upload-from-phone-editor' );
+		wp_deregister_style( 'upload-from-phone-view' );
+
+		register_assets();
+
+		$this->assertTrue( wp_script_is( 'upload-from-phone-editor', 'registered' ) );
+		$this->assertTrue( wp_script_is( 'upload-from-phone-view', 'registered' ) );
+		$this->assertTrue( wp_style_is( 'upload-from-phone-editor', 'registered' ) );
+		$this->assertTrue( wp_style_is( 'upload-from-phone-view', 'registered' ) );
+	}
+
+	/**
+	 * The upload page routes its media queue through the global rather than an
+	 * import, so the dependency has to be added by hand whenever the queue is
+	 * actually in play.
+	 *
+	 * @covers \UploadFromPhone\register_assets
+	 */
+	public function test_register_assets_adds_upload_media_dependency_when_client_side_processing_is_on(): void {
+		$this->enable_client_side_processing();
+
+		// register_assets() already ran once via the `init` hook fired during
+		// bootstrap, before the filter above existed — wp_register_script() is
+		// a no-op for an already-registered handle, so the handle has to be
+		// deregistered first or this would still see the original, filterless
+		// dependency list.
+		wp_deregister_script( 'upload-from-phone-view' );
+
+		register_assets();
+
+		$view = wp_scripts()->registered['upload-from-phone-view'];
+
+		$this->assertContains( 'wp-data', $view->deps );
+		$this->assertContains( 'wp-upload-media', $view->deps );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\get_asset_meta
+	 */
+	public function test_get_asset_meta_falls_back_when_the_build_file_is_missing(): void {
+		$meta = get_asset_meta( 'does-not-exist' );
+
+		$this->assertSame( [], $meta['dependencies'] );
+		$this->assertSame( \UploadFromPhone\VERSION, $meta['version'] );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\has_client_side_processing
+	 */
+	public function test_client_side_processing_is_off_by_default(): void {
+		$this->assertFalse( has_client_side_processing() );
+	}
+
+	/**
+	 * The filter alone must not be enough — the queue script has to actually be
+	 * registered, or turning on the filter would enqueue a dependency on nothing.
+	 *
+	 * @covers \UploadFromPhone\has_client_side_processing
+	 */
+	public function test_client_side_processing_requires_both_the_filter_and_the_script(): void {
+		// WordPress bundles wp-upload-media as a core script as of WP 7.1, so it
+		// may already be registered here — deregister it to actually exercise
+		// the "filter without the script" branch, and restore the original
+		// registration afterwards rather than guess at its parameters.
+		$original_registration = wp_scripts()->registered['wp-upload-media'] ?? null;
+
+		if ( $original_registration ) {
+			wp_deregister_script( 'wp-upload-media' );
+		}
+
+		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+
+		try {
+			$this->assertFalse( has_client_side_processing() );
+		} finally {
+			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+
+			if ( $original_registration ) {
+				wp_scripts()->registered['wp-upload-media'] = $original_registration;
+			}
+		}
+
+		$this->enable_client_side_processing();
+		$this->assertTrue( has_client_side_processing() );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\enqueue_block_editor_assets
+	 */
+	public function test_block_editor_assets_require_upload_permission(): void {
+		register_assets();
+
+		$subscriber_id = self::factory()->user->create( [ 'role' => 'subscriber' ] );
+		wp_set_current_user( $subscriber_id );
+
+		enqueue_block_editor_assets();
+
+		$this->assertFalse( wp_script_is( 'upload-from-phone-editor', 'enqueued' ) );
+		$this->assertFalse( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
+
+		wp_set_current_user( self::$admin_id );
+
+		enqueue_block_editor_assets();
+
+		$this->assertTrue( wp_script_is( 'upload-from-phone-editor', 'enqueued' ) );
+		$this->assertTrue( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
+
+		wp_dequeue_script( 'upload-from-phone-editor' );
+		wp_dequeue_style( 'upload-from-phone-editor' );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\print_upload_page_assets
+	 */
+	public function test_upload_page_assets_are_only_printed_once_registered(): void {
+		wp_deregister_script( 'upload-from-phone-view' );
+
+		ob_start();
+		print_upload_page_assets();
+		$this->assertSame( '', ob_get_clean() );
+
+		register_assets();
+
+		ob_start();
+		print_upload_page_assets();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'upload-from-phone-view', $output );
+	}
+
+	/**
+	 * A request reached through its own link resolves to the upload page.
+	 *
+	 * @covers \UploadFromPhone\filter_template_include
+	 */
+	public function test_template_include_serves_the_upload_page_for_a_matching_token(): void {
+		$upload_request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $upload_request );
+
+		$this->go_to( $upload_request->get_url() );
+
+		$template = filter_template_include( 'placeholder.php' );
+
+		$this->assertStringContainsString( 'templates/upload-page.php', $template );
+		$this->assertFalse( is_404() );
+	}
+
+	/**
+	 * WordPress will resolve any publicly queryable post by ID. Reaching a live
+	 * upload request that way — rather than by following its link — must 404,
+	 * or the token stops being the thing that grants access.
+	 *
+	 * @covers \UploadFromPhone\filter_template_include
+	 */
+	public function test_template_include_404s_when_the_post_is_reached_by_id(): void {
+		$upload_request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $upload_request );
+
+		$this->go_to(
+			add_query_arg(
+				[
+					'p'         => $upload_request->get_post()->ID,
+					'post_type' => Upload_Request::POST_TYPE,
+				],
+				home_url( '/' )
+			)
+		);
+
+		$template = filter_template_include( 'placeholder.php' );
+
+		$this->assertSame( get_404_template(), $template );
+		$this->assertTrue( is_404() );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\filter_template_include
+	 */
+	public function test_template_include_leaves_unrelated_requests_alone(): void {
+		$this->go_to( home_url( '/' ) );
+
+		$this->assertSame( 'placeholder.php', filter_template_include( 'placeholder.php' ) );
+	}
+
+	/**
 	 * Turns on the client-side processing path for the duration of a test.
 	 *
 	 * The filter alone is not enough: the queue is only used where WordPress
@@ -192,6 +401,12 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @return void
 	 */
 	private function enable_client_side_processing(): void {
+		// wp_register_script() is a no-op for an already-registered handle, so a
+		// pre-existing registration (WordPress core bundles this script as of
+		// WP 7.1) survives this call untouched — and tear_down() must leave it
+		// alone rather than deregister the real thing.
+		$this->registered_wp_upload_media_script = ! wp_script_is( 'wp-upload-media', 'registered' );
+
 		wp_register_script( 'wp-upload-media', 'https://example.org/upload-media.js', [], '1.0', true );
 
 		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
@@ -207,7 +422,17 @@ class Test_Functions extends WP_UnitTestCase {
 	public function tear_down(): void {
 		if ( $this->reset_client_side_processing ) {
 			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
-			wp_deregister_script( 'wp-upload-media' );
+
+			if ( $this->registered_wp_upload_media_script ) {
+				wp_deregister_script( 'wp-upload-media' );
+			}
+
+			// register_assets() may have registered upload-from-phone-view with a
+			// dependency on wp-upload-media while the filter was active. WordPress
+			// doesn't reset $wp_scripts between tests, so left alone that dangling
+			// dependency would carry over to every test that runs afterwards.
+			wp_deregister_script( 'upload-from-phone-view' );
+			register_assets();
 
 			$this->reset_client_side_processing = false;
 		}

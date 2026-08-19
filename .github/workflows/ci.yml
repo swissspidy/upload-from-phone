@@ -56,11 +56,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Fully enumerated rather than a cross-product: it keeps the coverage
+        # flag unambiguous per row instead of relying on `include` merge rules.
         include:
           - php: '8.0'
-            wordpress: '6.8'
+            wordpress: '7.1-RC4'
+            coverage: false
+          - php: '8.1'
+            wordpress: 'latest'
+            coverage: false
+          - php: '8.2'
+            wordpress: 'latest'
+            coverage: false
           - php: '8.3'
             wordpress: 'latest'
+            coverage: true
+          - php: '8.4'
+            wordpress: 'latest'
+            coverage: false
+          - php: '8.5'
+            wordpress: 'latest'
+            coverage: false
     steps:
       - uses: actions/checkout@v7
 
@@ -84,12 +100,21 @@ jobs:
       # Coverage only on one leg — it roughly doubles the run (Xdebug slows
       # PHPUnit down a lot), and one upload per push is all codecov needs.
       - name: Start WordPress
-        run: ./node_modules/.bin/wp-env start ${{ matrix.wordpress == 'latest' && '--xdebug=coverage' || '' }}
+        run: ./node_modules/.bin/wp-env start ${{ matrix.coverage && '--xdebug=coverage' || '' }}
         env:
-          WP_ENV_CORE: ${{ matrix.wordpress == 'latest' && 'WordPress/WordPress' || format('WordPress/WordPress#{0}', matrix.wordpress) }}
+          # Fetched from the exact zip WordPress.org serves for each build, rather
+          # than the git mirror's branch: a branch tracks whatever unreleased
+          # commits have landed since, not the released version a real site would
+          # actually run — and an RC has no branch on the mirror at all.
+          WP_ENV_CORE: ${{ matrix.wordpress == 'latest' && 'WordPress/WordPress' || format('https://wordpress.org/wordpress-{0}.zip', matrix.wordpress) }}
+          # PHPUnit runs inside the tests-cli container, not on the runner —
+          # setup-php's `matrix.php` only affects the host, so the container
+          # needs its own PHP version pinned or every leg would silently run
+          # whatever PHP wp-env's image defaults to.
+          WP_ENV_PHP_VERSION: ${{ matrix.php }}
 
       - name: Create coverage output directory
-        if: ${{ matrix.wordpress == 'latest' }}
+        if: ${{ matrix.coverage }}
         run: mkdir -p artifacts
 
       # Run wp-env directly: `npm run` swallows `--env-cwd` as an npm config
@@ -100,11 +125,15 @@ jobs:
           ./node_modules/.bin/wp-env run tests-cli
           --env-cwd=wp-content/plugins/upload-from-phone
           vendor/bin/phpunit
-          ${{ matrix.wordpress == 'latest' && '--coverage-clover artifacts/coverage.xml' || '' }}
+          ${{ matrix.coverage && '--coverage-clover artifacts/coverage.xml' || '' }}
 
       - name: Upload code coverage report
         uses: codecov/codecov-action@v7.0.0
-        if: ${{ matrix.wordpress == 'latest' }}
+        # PHPUnit writes the clover report before a failing assertion fails the
+        # step above, so a red run shouldn't lose it — only skip when coverage
+        # genuinely wasn't collected for this leg.
+        if: ${{ always() && matrix.coverage && hashFiles('artifacts/coverage.xml') != '' }}
         with:
           files: artifacts/coverage.xml
+          flags: php
           token: ${{ secrets.CODECOV_TOKEN }}

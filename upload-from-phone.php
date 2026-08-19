@@ -9,11 +9,16 @@
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  * Text Domain:       upload-from-phone
- * Requires at least: 6.8
+ * Requires at least: 7.1
  * Requires PHP:      8.0
  *
  * @package UploadFromPhone
  */
+
+// Note: composer.json's php-stubs/wordpress-stubs is pinned to ^6.8, below the
+// "Requires at least" above — no 7.1 stubs release exists yet, and
+// szepeviktor/phpstan-wordpress doesn't support the stubs package's 7.x line
+// either. Bump both once 7.1 stubs are released.
 
 declare(strict_types = 1);
 

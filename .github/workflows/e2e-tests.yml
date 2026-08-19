@@ -16,8 +16,15 @@ permissions: {}
 
 jobs:
     e2e-tests:
-        name: E2E Tests
+        name: E2E Tests (WordPress ${{ matrix.wordpress }})
         runs-on: ubuntu-latest
+
+        strategy:
+            fail-fast: false
+            matrix:
+                # Matches "Requires at least" — 6.8 dropped after it surfaced a
+                # WP-core-internal bug unrelated to this plugin (see #17).
+                wordpress: ['7.1-RC4']
 
         steps:
             - name: Checkout
@@ -37,17 +44,40 @@ jobs:
 
             - name: Build plugin
               run: npm run build
+              env:
+                  WP_DEVTOOL: source-map
+                  # To get CSS source maps.
+                  NODE_ENV: development
 
+            # Fetched from the exact zip WordPress.org serves for each build, rather
+            # than the git mirror's branch: a branch tracks whatever unreleased
+            # commits have landed since, not the released version a real site would
+            # actually run.
             - name: Start WordPress
               run: npm run wp-env start
+              env:
+                  WP_ENV_CORE: https://wordpress.org/wordpress-${{ matrix.wordpress }}.zip
 
             - name: Run tests
               run: npm run test:e2e
+              env:
+                  COLLECT_COVERAGE: true
+
+            - name: Upload code coverage report
+              uses: codecov/codecov-action@v7.0.0
+              # The reporter writes the coverage report before failed tests fail
+              # the step above, so a red run shouldn't lose it — only skip when
+              # coverage genuinely wasn't collected.
+              if: ${{ always() && hashFiles('artifacts/e2e-coverage/coverage/codecov.json') != '' }}
+              with:
+                  files: artifacts/e2e-coverage/coverage/codecov.json
+                  flags: e2e
+                  token: ${{ secrets.CODECOV_TOKEN }}
 
             - name: Archive debug artifacts (screenshots, HTML snapshots)
               uses: actions/upload-artifact@v7
               if: always()
               with:
-                  name: failures-artifacts
+                  name: failures-artifacts-${{ matrix.wordpress }}
                   path: artifacts
                   if-no-files-found: ignore
