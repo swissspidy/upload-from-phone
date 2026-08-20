@@ -391,12 +391,12 @@ function get_upload_page_data( Upload_Request $upload_request ): array {
 		);
 	}
 
+	/*
+	 * The upload itself goes over XMLHttpRequest rather than apiFetch, so that
+	 * the phone can show how far along a large photo is, which means the
+	 * endpoint has to be addressed absolutely.
+	 */
 	$data = [
-		/*
-		 * The upload itself goes over XMLHttpRequest rather than apiFetch, so
-		 * that the phone can show how far along a large photo is, which means
-		 * the endpoint has to be addressed absolutely.
-		 */
 		'mediaUrl'          => rest_url( 'wp/v2/media' ),
 		'token'             => $upload_request->get_token(),
 		'allowedTypes'      => $allowed_types,

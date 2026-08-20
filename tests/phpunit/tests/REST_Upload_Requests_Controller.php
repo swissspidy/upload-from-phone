@@ -211,5 +211,4 @@ class Test_REST_Upload_Requests_Controller extends WP_Test_REST_TestCase {
 		$this->assertTrue( $response->get_data()['deleted'] );
 		$this->assertNull( Upload_Request::get_by_token( $token ) );
 	}
-
 }

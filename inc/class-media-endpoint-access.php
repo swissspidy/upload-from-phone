@@ -506,9 +506,9 @@ class Media_Endpoint_Access {
 	 * capability being asked about, which is stable, not the primitives it
 	 * happens to map to on this site.
 	 *
-	 * @param array  $allcaps All capabilities the user has.
-	 * @param array  $caps    Primitive capabilities being checked for.
-	 * @param array  $args    Arguments: cap being checked, user ID, object ID.
+	 * @param array $allcaps All capabilities the user has.
+	 * @param array $caps    Primitive capabilities being checked for.
+	 * @param array $args    Arguments: cap being checked, user ID, object ID.
 	 * @return array Filtered capabilities.
 	 *
 	 * @phpstan-param array<string, bool> $allcaps

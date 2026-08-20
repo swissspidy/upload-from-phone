@@ -155,7 +155,9 @@ class Test_Functions extends WP_UnitTestCase {
 	 *
 	 * @covers \UploadFromPhone\get_upload_page_data
 	 */
-	public function test_upload_page_data_omits_image_settings_by_default(): void {
+	public function test_upload_page_data_omits_image_settings_without_the_queue(): void {
+		$this->disable_client_side_processing();
+
 		$upload_request = Upload_Request::create( [ 'allowed_types' => [ 'image' ] ] );
 		$this->assertInstanceOf( Upload_Request::class, $upload_request );
 
@@ -165,6 +167,7 @@ class Test_Functions extends WP_UnitTestCase {
 		$this->assertArrayNotHasKey( 'allImageSizes', $data );
 		$this->assertArrayNotHasKey( 'bigImageSizeThreshold', $data );
 
+		// What every upload page needs, queue or no queue.
 		$this->assertSame( [ 'image' ], $data['allowedTypes'] );
 		$this->assertNotEmpty( $data['allowedMimeTypes'] );
 		$this->assertStringContainsString( 'wp/v2/media', $data['mediaUrl'] );
@@ -399,19 +402,19 @@ class Test_Functions extends WP_UnitTestCase {
 	 */
 	public function data_chromium_user_agents(): array {
 		return [
-			'Chrome on Android'  => [
+			'Chrome on Android' => [
 				'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
 				140,
 			],
-			'Chrome before DIP'  => [
+			'Chrome before DIP' => [
 				'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
 				120,
 			],
-			'Safari on iOS'      => [
+			'Safari on iOS'     => [
 				'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
 				null,
 			],
-			'nothing at all'     => [ '', null ],
+			'nothing at all'    => [ '', null ],
 		];
 	}
 
@@ -419,6 +422,8 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @covers \UploadFromPhone\send_cross_origin_isolation_headers
 	 */
 	public function test_no_isolation_headers_without_client_side_processing(): void {
+		$this->disable_client_side_processing();
+
 		// Nothing to isolate for: the page is not going to process anything.
 		$this->assertFalse( has_client_side_processing() );
 
@@ -568,6 +573,22 @@ class Test_Functions extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Turns off the client-side processing path for the duration of a test.
+	 *
+	 * Cannot be left to the environment: WordPress reports the pipeline
+	 * available in any secure context, and `localhost` — which is where a test
+	 * install runs — counts as one. So the path is on by default here, exactly
+	 * as it would be on a real site over HTTPS.
+	 *
+	 * @return void
+	 */
+	private function disable_client_side_processing(): void {
+		add_filter( 'upload_from_phone_client_side_processing', '__return_false' );
+
+		$this->reset_client_side_processing = true;
+	}
+
+	/**
 	 * Turns on the client-side processing path for the duration of a test.
 	 *
 	 * The filter alone is not enough: the queue is only used where WordPress
@@ -603,6 +624,7 @@ class Test_Functions extends WP_UnitTestCase {
 		if ( $this->reset_client_side_processing ) {
 			remove_filter( 'wp_client_side_media_processing_enabled', '__return_true' );
 			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+			remove_filter( 'upload_from_phone_client_side_processing', '__return_false' );
 
 			if ( $this->registered_wp_upload_media_script ) {
 				wp_deregister_script( 'wp-upload-media' );
