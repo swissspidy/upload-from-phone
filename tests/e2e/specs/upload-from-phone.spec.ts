@@ -101,7 +101,7 @@ test.describe( 'Upload from phone', () => {
 
 		await expect(
 			secondPage.getByText( 'All done. You can close this page.' )
-		).toBeVisible();
+		).toBeVisible( { timeout: UPLOAD_TIMEOUT } );
 
 		// The editor polls for the upload on its own; no action needed here.
 		await expect( panel ).toBeHidden( { timeout: UPLOAD_TIMEOUT } );
@@ -138,7 +138,7 @@ test.describe( 'Upload from phone', () => {
 
 		await expect(
 			secondPage.getByText( 'All done. You can close this page.' )
-		).toBeVisible();
+		).toBeVisible( { timeout: UPLOAD_TIMEOUT } );
 
 		await expect( panel ).toBeHidden( { timeout: UPLOAD_TIMEOUT } );
 		await expect( imageBlock.locator( 'img' ) ).toBeVisible();
