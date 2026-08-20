@@ -140,7 +140,18 @@ test.describe( 'Client-side media processing', () => {
 
 		const imports = JSON.parse( importMap ?? '{}' ).imports ?? {};
 
-		expect( Object.keys( imports ) ).toContain( '@wordpress/vips/worker' );
+		/*
+		 * Both of the queue's on-demand workers, and the URL each resolves to:
+		 * a key present but mapped to nothing would leave the import failing
+		 * exactly as it did without the map at all.
+		 */
+		for ( const id of [
+			'@wordpress/vips/worker',
+			'@wordpress/video-conversion/worker',
+		] ) {
+			expect( typeof imports[ id ] ).toBe( 'string' );
+			expect( imports[ id ] ).not.toBe( '' );
+		}
 	} );
 
 	test( 'the upload page is told what the site does with images', async ( {
