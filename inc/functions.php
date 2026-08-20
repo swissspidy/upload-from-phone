@@ -211,7 +211,7 @@ function has_client_side_processing(): bool {
  * @return int|null Major version, or null if the browser is not Chromium-based.
  */
 function get_chromium_major_version(): ?int {
-	$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] )
+	$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) && \is_string( $_SERVER['HTTP_USER_AGENT'] )
 		? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) )
 		: '';
 
@@ -347,7 +347,9 @@ function filter_template_include( string $template ): string {
 	 * page reached by a post ID rather than by following the link is a 404 —
 	 * otherwise counting upwards from 1 would find every live upload request.
 	 */
-	if ( ! $post instanceof WP_Post || (string) get_query_var( 'name' ) !== $post->post_name ) {
+	$name = get_query_var( 'name' );
+
+	if ( ! $post instanceof WP_Post || ! \is_string( $name ) || $name !== $post->post_name ) {
 		global $wp_query;
 
 		if ( $wp_query instanceof WP_Query ) {
@@ -393,14 +395,28 @@ function filter_template_include( string $template ): string {
  * @phpstan-return array<string, array<string, mixed>>
  */
 function get_all_image_sizes(): array {
-	$sizes = wp_get_registered_image_subsizes();
+	$sizes = [];
 
-	foreach ( $sizes as $name => &$size ) {
-		$size['height'] = (int) $size['height'];
-		$size['width']  = (int) $size['width'];
-		$size['name']   = $name;
+	foreach ( wp_get_registered_image_subsizes() as $name => $size ) {
+		if ( ! \is_string( $name ) || ! \is_array( $size ) ) {
+			continue;
+		}
+
+		$width  = $size['width'] ?? 0;
+		$height = $size['height'] ?? 0;
+
+		/*
+		 * Listed out rather than passed through: these four are the whole of
+		 * what the upload page reads, and naming them is what makes the shape
+		 * this function promises something more than a comment.
+		 */
+		$sizes[ $name ] = [
+			'name'   => $name,
+			'width'  => is_numeric( $width ) ? (int) $width : 0,
+			'height' => is_numeric( $height ) ? (int) $height : 0,
+			'crop'   => $size['crop'] ?? false,
+		];
 	}
-	unset( $size );
 
 	return $sizes;
 }
@@ -456,7 +472,11 @@ function get_upload_page_data( Upload_Request $upload_request ): array {
 	 */
 
 	/** This filter is documented in wp-admin/includes/image.php */
-	$data['bigImageSizeThreshold'] = (int) apply_filters( 'big_image_size_threshold', 2560, [ 0, 0 ], '', 0 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+	$threshold = apply_filters( 'big_image_size_threshold', 2560, [ 0, 0 ], '', 0 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+
+	// Documented as `int|false`, false meaning do not scale down at all — which
+	// is the same 0 the cast has always turned it into.
+	$data['bigImageSizeThreshold'] = is_numeric( $threshold ) ? (int) $threshold : 0;
 
 	/** This filter is documented in wp-includes/class-wp-image-editor-imagick.php */
 	$data['imageStripMeta'] = (bool) apply_filters( 'image_strip_meta', true ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
@@ -467,7 +487,11 @@ function get_upload_page_data( Upload_Request $upload_request ): array {
 	 * the deepest vips will produce — as both the value and the current depth.
 	 */
 	/** This filter is documented in wp-includes/class-wp-image-editor-imagick.php */
-	$data['imageMaxBitDepth'] = (int) apply_filters( 'image_max_bit_depth', 16, 16 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+	$bit_depth = apply_filters( 'image_max_bit_depth', 16, 16 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+
+	// No sentinel for this one, so anything unreadable falls back to the depth
+	// it was asked with.
+	$data['imageMaxBitDepth'] = is_numeric( $bit_depth ) ? (int) $bit_depth : 16;
 
 	$data['allImageSizes'] = get_all_image_sizes();
 

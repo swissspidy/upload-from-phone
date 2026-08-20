@@ -1,12 +1,15 @@
 parameters:
-	level: 6
+	level: 10
 	paths:
 		- upload-from-phone.php
+		- uninstall.php
 		- inc/
 		- templates/
 	scanFiles:
 		- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
 		- tests/phpstan/stubs.php
+	stubFiles:
+		- tests/phpstan/core-stubs.php
 	bootstrapFiles:
 		- tests/phpstan/bootstrap.php
 	treatPhpDocTypesAsCertain: false

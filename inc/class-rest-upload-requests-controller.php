@@ -36,11 +36,21 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class REST_Upload_Requests_Controller extends WP_REST_Controller {
 	/**
+	 * Namespace these routes are registered under.
+	 */
+	private const REST_NAMESPACE = 'upload-from-phone/v1';
+
+	/**
+	 * Base of the upload request routes.
+	 */
+	private const REST_BASE = 'upload-requests';
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
-		$this->namespace = 'upload-from-phone/v1';
-		$this->rest_base = 'upload-requests';
+		$this->namespace = self::REST_NAMESPACE;
+		$this->rest_base = self::REST_BASE;
 	}
 
 	/**
@@ -50,8 +60,8 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 	 */
 	public function register_routes(): void {
 		register_rest_route(
-			$this->namespace,
-			'/' . $this->rest_base,
+			self::REST_NAMESPACE,
+			'/' . self::REST_BASE,
 			[
 				[
 					'methods'             => WP_REST_Server::CREATABLE,
@@ -92,8 +102,8 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 		);
 
 		register_rest_route(
-			$this->namespace,
-			'/' . $this->rest_base . '/(?P<token>[a-f0-9]{32})',
+			self::REST_NAMESPACE,
+			'/' . self::REST_BASE . '/(?P<token>[a-f0-9]{32})',
 			[
 				'args'   => [
 					'token' => [
@@ -131,7 +141,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 			);
 		}
 
-		$parent_id = (int) $request['post'];
+		$parent_id = $this->get_post_id( $request );
 
 		if ( $parent_id > 0 && ! current_user_can( 'edit_post', $parent_id ) ) {
 			return new WP_Error(
@@ -153,9 +163,9 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 	public function create_item( $request ) {
 		$upload_request = Upload_Request::create(
 			[
-				'post'          => (int) $request['post'],
-				'allowed_types' => (array) $request['allowed_types'],
-				'accept'        => (array) $request['accept'],
+				'post'          => $this->get_post_id( $request ),
+				'allowed_types' => $this->get_string_array( $request, 'allowed_types' ),
+				'accept'        => $this->get_string_array( $request, 'accept' ),
 				'multiple'      => (bool) $request['multiple'],
 			]
 		);
@@ -177,7 +187,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 	 * @return true|WP_Error True if the request has access, WP_Error object otherwise.
 	 */
 	public function get_item_permissions_check( $request ) {
-		return $this->check_owner_permission( (string) $request['token'] );
+		return $this->check_owner_permission( $this->get_token( $request ) );
 	}
 
 	/**
@@ -187,7 +197,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 	 * @return WP_REST_Response|WP_Error Response object on success, error object on failure.
 	 */
 	public function get_item( $request ) {
-		$upload_request = Upload_Request::get_by_token( (string) $request['token'] );
+		$upload_request = Upload_Request::get_by_token( $this->get_token( $request ) );
 
 		if ( ! $upload_request instanceof Upload_Request ) {
 			return $this->not_found_error();
@@ -203,7 +213,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 	 * @return true|WP_Error True if the request has access, WP_Error object otherwise.
 	 */
 	public function delete_item_permissions_check( $request ) {
-		return $this->check_owner_permission( (string) $request['token'] );
+		return $this->check_owner_permission( $this->get_token( $request ) );
 	}
 
 	/**
@@ -213,7 +223,7 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 	 * @return WP_REST_Response|WP_Error Response object on success, error object on failure.
 	 */
 	public function delete_item( $request ) {
-		$upload_request = Upload_Request::get_by_token( (string) $request['token'] );
+		$upload_request = Upload_Request::get_by_token( $this->get_token( $request ) );
 
 		if ( ! $upload_request instanceof Upload_Request ) {
 			return $this->not_found_error();
@@ -229,6 +239,55 @@ class REST_Upload_Requests_Controller extends WP_REST_Controller {
 				'previous' => $previous,
 			]
 		);
+	}
+
+	/**
+	 * Reads the parent post ID off a request.
+	 *
+	 * Request parameters arrive as whatever was sent; the schema is what
+	 * narrows them, and these three readers are where that narrowing is
+	 * spelled out for the rest of the class.
+	 *
+	 * @param WP_REST_Request $request Full details about the request.
+	 * @return int Post ID, or 0 if the parameter was not a number.
+	 */
+	private function get_post_id( WP_REST_Request $request ): int {
+		$post_id = $request['post'];
+
+		return is_numeric( $post_id ) ? (int) $post_id : 0;
+	}
+
+	/**
+	 * Reads the upload request token off a request.
+	 *
+	 * @param WP_REST_Request $request Full details about the request.
+	 * @return string The token, or an empty string if the parameter was not one.
+	 */
+	private function get_token( WP_REST_Request $request ): string {
+		$token = $request['token'];
+
+		return is_string( $token ) ? $token : '';
+	}
+
+	/**
+	 * Reads a list of strings off a request.
+	 *
+	 * Anything that is not a string is dropped rather than coerced: both lists
+	 * read through here hold names — media types and file type specifiers —
+	 * and a value of any other shape is not one.
+	 *
+	 * @param WP_REST_Request $request Full details about the request.
+	 * @param string          $param   Name of the request parameter to read.
+	 * @return string[] The strings that were sent.
+	 */
+	private function get_string_array( WP_REST_Request $request, string $param ): array {
+		$values = $request[ $param ];
+
+		if ( ! is_array( $values ) ) {
+			return [];
+		}
+
+		return array_values( array_filter( $values, 'is_string' ) );
 	}
 
 	/**

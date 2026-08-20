@@ -68,6 +68,7 @@
 	<exclude-pattern>*/vendor/*</exclude-pattern>
 	<!-- Bootstraps set up globals for a test runner; the usual rules do not apply. -->
 	<exclude-pattern>*/bootstrap.php</exclude-pattern>
-	<!-- Stubs stand in for WordPress's own functions, so they carry its names, not ours. -->
+	<!-- Stubs stand in for WordPress's own declarations, so they carry its names, not ours. -->
 	<exclude-pattern>*/tests/phpstan/stubs.php</exclude-pattern>
+	<exclude-pattern>*/tests/phpstan/core-stubs.php</exclude-pattern>
 </ruleset>
