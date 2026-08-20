@@ -425,12 +425,24 @@ class Media_Endpoint_Access {
 	 * not come from one of them and is no attachment of this request's.
 	 *
 	 * @param WP_REST_Request $request The request.
-	 * @return int Attachment ID, or 0 if the parameter was not a number.
+	 * @return int Attachment ID, or 0 if the parameter was not one.
 	 */
 	private function get_attachment_id( WP_REST_Request $request ): int {
 		$attachment_id = $request['id'];
 
-		return is_numeric( $attachment_id ) ? (int) $attachment_id : 0;
+		if ( ! \is_int( $attachment_id ) && ! \is_string( $attachment_id ) ) {
+			return 0;
+		}
+
+		/*
+		 * Read the same way Upload_Request::get_attachment_ids() reads the
+		 * stored list, so that the two sides of the comparison in
+		 * check_operation() cannot disagree about what a value means. A number
+		 * too large for an int is no attachment's ID rather than PHP_INT_MAX.
+		 */
+		$attachment_id = filter_var( $attachment_id, FILTER_VALIDATE_INT );
+
+		return false !== $attachment_id && $attachment_id > 0 ? $attachment_id : 0;
 	}
 
 	/**

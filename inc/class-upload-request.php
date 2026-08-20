@@ -420,24 +420,26 @@ final class Upload_Request {
 		/*
 		 * Whole positive numbers only, rather than merely numeric ones. This
 		 * list is what decides which attachments a token may touch, and a cast
-		 * answers for values that are not IDs at all: `12.5` would land on
-		 * attachment 12, and anything unreadable on attachment 0, which
-		 * get_post() resolves to whatever post happens to be current. Nothing
-		 * here writes such a value — add_attachment() takes an int — so this
-		 * is about what another writer of the same meta key could leave behind.
+		 * has an answer for values that are not IDs at all: `12.5` lands on
+		 * attachment 12, anything unreadable on attachment 0 — which get_post()
+		 * resolves to whatever post happens to be current — and a number too
+		 * large for an int saturates to PHP_INT_MAX, so two unrelated stored
+		 * values read as the same attachment. Nothing here writes any of those;
+		 * add_attachment() takes an int. This is about what another writer of
+		 * the same meta key could leave behind.
 		 */
 		$attachment_ids = [];
 
 		foreach ( $ids as $id ) {
-			if ( is_int( $id ) ) {
-				$attachment_id = $id;
-			} elseif ( is_string( $id ) && ctype_digit( $id ) ) {
-				$attachment_id = (int) $id;
-			} else {
+			if ( ! is_int( $id ) && ! is_string( $id ) ) {
 				continue;
 			}
 
-			if ( $attachment_id > 0 ) {
+			// filter_var() rather than a cast: it is the one that answers
+			// false instead of guessing when the value will not fit.
+			$attachment_id = filter_var( $id, FILTER_VALIDATE_INT );
+
+			if ( false !== $attachment_id && $attachment_id > 0 ) {
 				$attachment_ids[] = $attachment_id;
 			}
 		}
