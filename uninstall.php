@@ -42,6 +42,13 @@ foreach ( $ufph_upload_requests as $ufph_post_id ) {
 	wp_delete_post( $ufph_post_id, true );
 }
 
+/*
+ * The attachments themselves stay, but this plugin's mark on them does not.
+ * Upload_Request::delete() clears it for requests that go through it; this
+ * catches anything left behind by a request that did not, and costs one query.
+ */
+delete_post_meta_by_key( Upload_Request::META_PENDING_SINCE );
+
 // Belt and suspenders: deactivation already does this, but nothing
 // guarantees deactivation ran before whatever triggered this uninstall.
 wp_clear_scheduled_hook( 'upload_from_phone_cleanup' );

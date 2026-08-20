@@ -311,6 +311,63 @@ class Test_Upload_Request extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Pending state has to live on the attachment, one row each.
+	 *
+	 * Five files upload at once by default and each sends its generated sizes
+	 * as they are cut, so writes overlap routinely. Held in a single value on
+	 * the request, every write would be a read-modify-write, and two in flight
+	 * would lose one another's work — at worst dropping a file's pending mark
+	 * and handing it over half-processed. PHPUnit cannot interleave real
+	 * requests, so what is pinned here is the shape that makes it impossible.
+	 *
+	 * @covers ::add_attachment
+	 * @covers ::mark_attachment_ready
+	 */
+	public function test_pending_state_is_stored_on_the_attachment(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+		$request->add_attachment( 22 );
+
+		$this->assertNotEmpty(
+			get_post_meta( 11, Upload_Request::META_PENDING_SINCE, true )
+		);
+		$this->assertEmpty(
+			get_post_meta( 22, Upload_Request::META_PENDING_SINCE, true )
+		);
+
+		$request->mark_attachment_ready( 11 );
+
+		$this->assertEmpty(
+			get_post_meta( 11, Upload_Request::META_PENDING_SINCE, true )
+		);
+	}
+
+	/**
+	 * @covers ::touch_pending_attachment
+	 * @covers ::mark_attachment_ready
+	 */
+	public function test_settling_one_file_leaves_the_others_alone(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+		$request->add_attachment( 22, true );
+		$request->add_attachment( 33, true );
+
+		$request->mark_attachment_ready( 22 );
+
+		$this->assertSame( [ 11, 33 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 22 ], $request->get_ready_attachment_ids() );
+
+		// And a file that has already been handed over stays handed over.
+		$request->touch_pending_attachment( 22 );
+
+		$this->assertSame( [ 22 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
 	 * A browser that stops halfway leaves a file that arrived intact but was
 	 * never finished. Withholding it forever would lose the upload outright,
 	 * so it is given up on and handed over short of its generated sizes.
@@ -394,15 +451,15 @@ class Test_Upload_Request extends WP_UnitTestCase {
 	 * Written straight to the meta rather than waiting out the real timeout,
 	 * which is measured in minutes.
 	 *
-	 * @param Upload_Request $request       The upload request.
+	 * @param Upload_Request $request       The upload request the file belongs to.
 	 * @param int            $attachment_id Attachment ID.
 	 * @return void
 	 */
 	private function backdate_pending( Upload_Request $request, int $attachment_id ): void {
 		update_post_meta(
-			$request->get_post()->ID,
-			Upload_Request::META_PENDING_ATTACHMENTS,
-			[ $attachment_id => time() - Upload_Request::get_stall_timeout() - 1 ]
+			$attachment_id,
+			Upload_Request::META_PENDING_SINCE,
+			time() - Upload_Request::get_stall_timeout() - 1
 		);
 	}
 
