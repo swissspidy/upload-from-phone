@@ -276,6 +276,211 @@ class Test_Upload_Request extends WP_UnitTestCase {
 	}
 
 	/**
+	 * @covers ::add_attachment
+	 * @covers ::get_pending_attachment_ids
+	 * @covers ::get_ready_attachment_ids
+	 */
+	public function test_attachments_are_ready_unless_they_are_recorded_as_pending(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11 );
+		$request->add_attachment( 22, true );
+
+		$this->assertSame( [ 11, 22 ], $request->get_attachment_ids() );
+		$this->assertSame( [ 22 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 11 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * @covers ::mark_attachment_ready
+	 */
+	public function test_marking_an_attachment_ready_hands_it_over(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+		$request->add_attachment( 22, true );
+
+		$this->assertSame( [], $request->get_ready_attachment_ids() );
+
+		$request->mark_attachment_ready( 11 );
+
+		$this->assertSame( [ 22 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 11 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * Pending state has to live on the attachment, one row each.
+	 *
+	 * Five files upload at once by default and each sends its generated sizes
+	 * as they are cut, so writes overlap routinely. Held in a single value on
+	 * the request, every write would be a read-modify-write, and two in flight
+	 * would lose one another's work — at worst dropping a file's pending mark
+	 * and handing it over half-processed. PHPUnit cannot interleave real
+	 * requests, so what is pinned here is the shape that makes it impossible.
+	 *
+	 * @covers ::add_attachment
+	 * @covers ::mark_attachment_ready
+	 */
+	public function test_pending_state_is_stored_on_the_attachment(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+		$request->add_attachment( 22 );
+
+		$this->assertNotEmpty(
+			get_post_meta( 11, Upload_Request::META_PENDING_SINCE, true )
+		);
+		$this->assertEmpty(
+			get_post_meta( 22, Upload_Request::META_PENDING_SINCE, true )
+		);
+
+		$request->mark_attachment_ready( 11 );
+
+		$this->assertEmpty(
+			get_post_meta( 11, Upload_Request::META_PENDING_SINCE, true )
+		);
+	}
+
+	/**
+	 * @covers ::touch_pending_attachment
+	 * @covers ::mark_attachment_ready
+	 */
+	public function test_settling_one_file_leaves_the_others_alone(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+		$request->add_attachment( 22, true );
+		$request->add_attachment( 33, true );
+
+		$request->mark_attachment_ready( 22 );
+
+		$this->assertSame( [ 11, 33 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 22 ], $request->get_ready_attachment_ids() );
+
+		// And a file that has already been handed over stays handed over.
+		$request->touch_pending_attachment( 22 );
+
+		$this->assertSame( [ 22 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * A browser that stops halfway leaves a file that arrived intact but was
+	 * never finished. Withholding it forever would lose the upload outright,
+	 * so it is given up on and handed over short of its generated sizes.
+	 *
+	 * @covers ::get_pending_attachment_ids
+	 * @covers ::get_ready_attachment_ids
+	 */
+	public function test_an_attachment_nothing_has_happened_to_is_given_up_on(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+
+		$this->assertSame( [ 11 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [], $request->get_ready_attachment_ids() );
+
+		$this->backdate_pending( $request, 11 );
+
+		$this->assertSame( [], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 11 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * A large photo can legitimately take a long time to work through, so the
+	 * measure is whether anything is still happening to it, not how long it
+	 * has been going.
+	 *
+	 * @covers ::touch_pending_attachment
+	 */
+	public function test_activity_keeps_a_long_running_file_from_being_given_up_on(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+		$this->backdate_pending( $request, 11 );
+
+		$this->assertSame( [], $request->get_pending_attachment_ids() );
+
+		// One more generated size arrives: the browser is still at it.
+		$request->touch_pending_attachment( 11 );
+
+		$this->assertSame( [ 11 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * @covers ::touch_pending_attachment
+	 */
+	public function test_touching_a_file_that_is_not_pending_does_nothing(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11 );
+		$request->touch_pending_attachment( 11 );
+
+		$this->assertSame( [], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 11 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * @covers ::get_stall_timeout
+	 */
+	public function test_the_stall_timeout_is_filterable_but_never_zero(): void {
+		$this->assertSame(
+			Upload_Request::DEFAULT_STALL_TIMEOUT,
+			Upload_Request::get_stall_timeout()
+		);
+
+		add_filter( 'upload_from_phone_stall_timeout', static fn () => -5 );
+
+		try {
+			$this->assertSame( 1, Upload_Request::get_stall_timeout() );
+		} finally {
+			remove_all_filters( 'upload_from_phone_stall_timeout' );
+		}
+	}
+
+	/**
+	 * Moves an attachment's last activity far enough back to count as stalled.
+	 *
+	 * Written straight to the meta rather than waiting out the real timeout,
+	 * which is measured in minutes.
+	 *
+	 * @param Upload_Request $request       The upload request the file belongs to.
+	 * @param int            $attachment_id Attachment ID.
+	 * @return void
+	 */
+	private function backdate_pending( Upload_Request $request, int $attachment_id ): void {
+		update_post_meta(
+			$attachment_id,
+			Upload_Request::META_PENDING_SINCE,
+			time() - Upload_Request::get_stall_timeout() - 1
+		);
+	}
+
+	/**
+	 * A file that has arrived counts against the limit whether or not the
+	 * browser has finished working on it — otherwise a phone could send more
+	 * than the request allows simply by being quick about it.
+	 *
+	 * @covers ::is_complete
+	 */
+	public function test_a_pending_attachment_still_counts_towards_the_limit(): void {
+		$request = Upload_Request::create( [ 'multiple' => false ] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+
+		$this->assertTrue( $request->is_complete() );
+		$this->assertSame( [], $request->get_ready_attachment_ids() );
+	}
+
+	/**
 	 * @covers ::delete
 	 */
 	public function test_delete_fires_an_action_and_removes_the_post(): void {

@@ -208,9 +208,17 @@ export function useUploadRequest( {
 			 * photos, not one. A request that has hit its own limit is finished
 			 * by definition; otherwise a poll that adds nothing new means the
 			 * phone has stopped.
+			 *
+			 * A file the browser is still converting or cutting sizes for is
+			 * not counted yet, so `processing` has to be checked as well —
+			 * without it, a batch where one photo takes longer than the others
+			 * would look like a phone that had stopped, and that photo would
+			 * be left behind.
 			 */
 			const isFinished =
-				count > 0 && ( current.complete || count === previousCount );
+				count > 0 &&
+				! current.processing &&
+				( current.complete || count === previousCount );
 
 			previousCount = count;
 

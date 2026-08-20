@@ -12,7 +12,7 @@ module.exports = {
 	...defaultConfig,
 	entry: {
 		editor: resolve( __dirname, 'src/editor/index.tsx' ),
-		view: resolve( __dirname, 'src/view/index.ts' ),
+		view: resolve( __dirname, 'src/view/index.tsx' ),
 	},
 	output: {
 		...defaultConfig.output,

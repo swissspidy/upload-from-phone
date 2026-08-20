@@ -1,7 +1,13 @@
 {
-	"plugins": [ "." ],
+	"plugins": [
+		"."
+	],
 	"config": {
 		"WP_DEBUG": true,
 		"SCRIPT_DEBUG": true
+	},
+	"mappings": {
+		"wp-content/plugins/no-client-side-processing": "./tests/e2e/plugins/no-client-side-processing",
+		"wp-content/plugins/one-file-per-link": "./tests/e2e/plugins/one-file-per-link"
 	}
 }

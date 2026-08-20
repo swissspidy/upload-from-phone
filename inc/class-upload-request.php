@@ -56,6 +56,29 @@ final class Upload_Request {
 	public const META_ATTACHMENT_ID = 'ufph_attachment_id';
 
 	/**
+	 * Meta key marking an attachment as still being processed in the browser.
+	 *
+	 * Stored on the attachment rather than on the upload request, and holding
+	 * the Unix timestamp of the last thing the browser did for that file.
+	 *
+	 * One row per attachment is not an implementation detail. Five files upload
+	 * at once by default and each sends its generated sizes as they are cut, so
+	 * writes for different attachments overlap as a matter of course. Holding
+	 * them in a single value would mean reading it, changing it and writing it
+	 * back, and two of those in flight lose one another's work — at worst
+	 * dropping a file's pending mark altogether and handing it to the editor
+	 * half-processed, which is the very thing the mark exists to prevent. Each
+	 * write here touches one row belonging to one attachment, so they cannot
+	 * collide.
+	 */
+	public const META_PENDING_SINCE = '_ufph_pending_since';
+
+	/**
+	 * How long a pending attachment may go untouched before it is given up on.
+	 */
+	public const DEFAULT_STALL_TIMEOUT = 2 * MINUTE_IN_SECONDS;
+
+	/**
 	 * Default lifetime of an upload request, in seconds.
 	 */
 	public const DEFAULT_TTL = 15 * MINUTE_IN_SECONDS;
@@ -366,7 +389,101 @@ final class Upload_Request {
 	}
 
 	/**
+	 * Returns how long a pending attachment may go untouched.
+	 *
+	 * @return int Timeout in seconds.
+	 */
+	public static function get_stall_timeout(): int {
+		/**
+		 * Filters how long a file may go untouched before the browser is
+		 * assumed to have given up on it.
+		 *
+		 * Measured from the last thing that happened to the file, not from when
+		 * it was uploaded, so a large photo that legitimately takes a while to
+		 * work through does not trip it.
+		 *
+		 * @param int $timeout Timeout in seconds. Default 2 minutes.
+		 */
+		$timeout = (int) apply_filters( 'upload_from_phone_stall_timeout', self::DEFAULT_STALL_TIMEOUT );
+
+		return max( 1, $timeout );
+	}
+
+	/**
+	 * Returns the IDs of attachments the browser is still working on.
+	 *
+	 * A file nothing has happened to for a while is not counted, however the
+	 * browser came to stop working on it — a closed tab, a lost signal, a
+	 * pipeline that failed after the file was already uploaded. The file itself
+	 * arrived intact in every one of those cases, so continuing to withhold it
+	 * would lose the upload outright rather than merely leave it short of its
+	 * generated sizes.
+	 *
+	 * @return int[] Attachment IDs.
+	 */
+	public function get_pending_attachment_ids(): array {
+		return $this->filter_pending( $this->get_attachment_ids() );
+	}
+
+	/**
+	 * Returns which of the given attachments are still being worked on.
+	 *
+	 * @param int[] $attachment_ids Attachment IDs to check.
+	 * @return int[] Those still being worked on.
+	 */
+	private function filter_pending( array $attachment_ids ): array {
+		if ( empty( $attachment_ids ) ) {
+			return [];
+		}
+
+		// Primed in one query rather than one per file: the editor polls this
+		// every few seconds for as long as a link is outstanding.
+		update_meta_cache( 'post', $attachment_ids );
+
+		$cutoff  = time() - self::get_stall_timeout();
+		$pending = [];
+
+		foreach ( $attachment_ids as $attachment_id ) {
+			$since = get_post_meta( $attachment_id, self::META_PENDING_SINCE, true );
+
+			if ( '' !== $since && (int) $since > $cutoff ) {
+				$pending[] = $attachment_id;
+			}
+		}
+
+		return $pending;
+	}
+
+	/**
+	 * Returns the IDs of attachments that are finished and safe to hand over.
+	 *
+	 * An attachment exists from the moment its file is uploaded, but when the
+	 * browser is generating the image sizes there is more to come: each size is
+	 * sideloaded onto it afterwards, and the metadata — including the URL of
+	 * the scaled file the site will actually serve — is only written at the
+	 * very end. Handing that attachment to the editor early would put a block
+	 * in the post pointing at a file that is about to be replaced, with no
+	 * sizes to build a `srcset` from.
+	 *
+	 * @return int[] Attachment IDs, oldest first.
+	 */
+	public function get_ready_attachment_ids(): array {
+		$attachment_ids = $this->get_attachment_ids();
+		$pending        = $this->filter_pending( $attachment_ids );
+
+		if ( empty( $pending ) ) {
+			return $attachment_ids;
+		}
+
+		return array_values( array_diff( $attachment_ids, $pending ) );
+	}
+
+	/**
 	 * Determines whether this upload request has received all the files it accepts.
+	 *
+	 * Counts everything that has arrived, finished or not: the limit is about
+	 * how many files may be sent, and one that is still being processed has
+	 * already been sent.
 	 *
 	 * @return bool Whether the request is complete.
 	 */
@@ -377,18 +494,62 @@ final class Upload_Request {
 	/**
 	 * Records an uploaded attachment against this upload request.
 	 *
+	 * @param int  $attachment_id Attachment ID.
+	 * @param bool $is_pending    Optional. Whether the browser still has work to do on it. Default false.
+	 * @return void
+	 */
+	public function add_attachment( int $attachment_id, bool $is_pending = false ): void {
+		add_post_meta( $this->post->ID, self::META_ATTACHMENT_ID, $attachment_id );
+
+		if ( ! $is_pending ) {
+			return;
+		}
+
+		update_post_meta( $attachment_id, self::META_PENDING_SINCE, time() );
+	}
+
+	/**
+	 * Records that the browser is still working on an attachment.
+	 *
+	 * Every generated image size the browser sends is evidence that it has not
+	 * gone away, which is what keeps a long job from being mistaken for a
+	 * stalled one.
+	 *
 	 * @param int $attachment_id Attachment ID.
 	 * @return void
 	 */
-	public function add_attachment( int $attachment_id ): void {
-		add_post_meta( $this->post->ID, self::META_ATTACHMENT_ID, $attachment_id );
+	public function touch_pending_attachment( int $attachment_id ): void {
+		/*
+		 * Only files that are still pending: a finished one must not be marked
+		 * unfinished again. The queue runs a file's sizes to completion before
+		 * finalizing it, so this check and the mark below cannot be separated
+		 * by that file's own finalize — and were they ever to be, the file
+		 * would simply wait out the stall timeout rather than come to harm.
+		 */
+		if ( '' === (string) get_post_meta( $attachment_id, self::META_PENDING_SINCE, true ) ) {
+			return;
+		}
+
+		update_post_meta( $attachment_id, self::META_PENDING_SINCE, time() );
+	}
+
+	/**
+	 * Marks an attachment as finished, so it can be handed to the editor.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return void
+	 */
+	public function mark_attachment_ready( int $attachment_id ): void {
+		delete_post_meta( $attachment_id, self::META_PENDING_SINCE );
 	}
 
 	/**
 	 * Permanently deletes this upload request.
 	 *
 	 * The uploaded attachments are deliberately left alone — by this point they
-	 * belong to the post, not to the request.
+	 * belong to the post, not to the request. Their pending marks are not: those
+	 * are this plugin's bookkeeping, and nothing will be along to clear them
+	 * once the request they belong to is gone.
 	 *
 	 * @return void
 	 */
@@ -399,6 +560,10 @@ final class Upload_Request {
 		 * @param WP_Post $post The upload request post.
 		 */
 		do_action( 'upload_from_phone_request_deleted', $this->post );
+
+		foreach ( $this->get_attachment_ids() as $attachment_id ) {
+			delete_post_meta( $attachment_id, self::META_PENDING_SINCE );
+		}
 
 		wp_delete_post( $this->post->ID, true );
 	}

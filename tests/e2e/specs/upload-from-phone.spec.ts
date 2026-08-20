@@ -21,6 +21,17 @@ const TEST_IMAGE = join(
 const UPLOAD_URL = /\/upload\/[a-f0-9]{32}\/?$/;
 
 /**
+ * How long to allow for media to get from the phone into the block.
+ *
+ * The browser converts what the server cannot read, scales anything past the
+ * site's threshold, cuts every registered image size, sideloads each one, and
+ * only then asks the server to commit the metadata — and the editor polls every
+ * few seconds on top of that. Ten seconds was enough when the file went up
+ * untouched; it is not enough for the work now being done on the way.
+ */
+const UPLOAD_TIMEOUT = 30_000;
+
+/**
  * Drops a file onto an element.
  *
  * Playwright has no way to drive a real OS-level drag, so this builds the
@@ -90,10 +101,10 @@ test.describe( 'Upload from phone', () => {
 
 		await expect(
 			secondPage.getByText( 'All done. You can close this page.' )
-		).toBeVisible();
+		).toBeVisible( { timeout: UPLOAD_TIMEOUT } );
 
 		// The editor polls for the upload on its own; no action needed here.
-		await expect( panel ).toBeHidden( { timeout: 10_000 } );
+		await expect( panel ).toBeHidden( { timeout: UPLOAD_TIMEOUT } );
 		await expect( imageBlock.locator( 'img' ) ).toBeVisible();
 	} );
 
@@ -116,15 +127,20 @@ test.describe( 'Upload from phone', () => {
 
 		await secondPage.goto( uploadUrl );
 
-		const dropzone = secondPage.locator( '#upload-from-phone-root' );
+		/*
+		 * The dropzone is the element React renders, not the container it
+		 * renders into: a drop dispatched on the container would never reach
+		 * the handler, since events bubble outwards.
+		 */
+		const dropzone = secondPage.locator( '.upload-from-phone__root' );
 
 		await dropFile( dropzone, TEST_IMAGE );
 
 		await expect(
 			secondPage.getByText( 'All done. You can close this page.' )
-		).toBeVisible();
+		).toBeVisible( { timeout: UPLOAD_TIMEOUT } );
 
-		await expect( panel ).toBeHidden( { timeout: 10_000 } );
+		await expect( panel ).toBeHidden( { timeout: UPLOAD_TIMEOUT } );
 		await expect( imageBlock.locator( 'img' ) ).toBeVisible();
 	} );
 
@@ -168,7 +184,7 @@ test.describe( 'Upload from phone', () => {
 			.locator( '#upload-from-phone-input' )
 			.setInputFiles( TEST_IMAGE );
 
-		await expect( panel ).toBeHidden( { timeout: 10_000 } );
+		await expect( panel ).toBeHidden( { timeout: UPLOAD_TIMEOUT } );
 		await expect( imageBlock.locator( 'img' ) ).toBeVisible();
 
 		// The media arriving must not have cost the writing done in the meantime.
@@ -229,7 +245,7 @@ test.describe( 'Upload from phone', () => {
 			.setInputFiles( TEST_IMAGE );
 
 		await expect( second.locator( 'img' ) ).toBeVisible( {
-			timeout: 10_000,
+			timeout: UPLOAD_TIMEOUT,
 		} );
 
 		// The first block is untouched, and still waiting on its own link.

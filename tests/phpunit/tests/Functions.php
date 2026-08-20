@@ -17,10 +17,12 @@ use function UploadFromPhone\enqueue_block_editor_assets;
 use function UploadFromPhone\filter_cron_schedules;
 use function UploadFromPhone\filter_template_include;
 use function UploadFromPhone\get_asset_meta;
+use function UploadFromPhone\get_chromium_major_version;
 use function UploadFromPhone\get_upload_page_data;
 use function UploadFromPhone\has_client_side_processing;
 use function UploadFromPhone\print_upload_page_assets;
 use function UploadFromPhone\register_assets;
+use function UploadFromPhone\send_cross_origin_isolation_headers;
 
 /**
  * Tests for the plugin's functions.
@@ -148,20 +150,54 @@ class Test_Functions extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The mime type list is only there for the client-side processing queue, so
-	 * a page that is not running that queue has no reason to be handed one.
+	 * The image settings are only there for the client-side processing queue,
+	 * so a page that is not running that queue has no reason to carry them.
 	 *
 	 * @covers \UploadFromPhone\get_upload_page_data
 	 */
-	public function test_upload_page_data_omits_mime_types_by_default(): void {
+	public function test_upload_page_data_omits_image_settings_without_the_queue(): void {
+		$this->disable_client_side_processing();
+
 		$upload_request = Upload_Request::create( [ 'allowed_types' => [ 'image' ] ] );
 		$this->assertInstanceOf( Upload_Request::class, $upload_request );
 
 		$data = get_upload_page_data( $upload_request );
 
-		$this->assertNull( $data['allowedMimeTypes'] );
+		$this->assertFalse( $data['clientSide'] );
+		$this->assertArrayNotHasKey( 'allImageSizes', $data );
+		$this->assertArrayNotHasKey( 'bigImageSizeThreshold', $data );
+
+		// What every upload page needs, queue or no queue.
 		$this->assertSame( [ 'image' ], $data['allowedTypes'] );
-		$this->assertStringContainsString( $upload_request->get_token(), $data['restUrl'] );
+		$this->assertNotEmpty( $data['allowedMimeTypes'] );
+		$this->assertStringContainsString( 'wp/v2/media', $data['mediaUrl'] );
+	}
+
+	/**
+	 * Without the registered sizes the queue would upload the file whole and
+	 * silently skip the cropping, so they have to travel with the page.
+	 *
+	 * @covers \UploadFromPhone\get_upload_page_data
+	 * @covers \UploadFromPhone\get_all_image_sizes
+	 */
+	public function test_upload_page_data_carries_the_image_settings_for_the_queue(): void {
+		$this->enable_client_side_processing();
+
+		$upload_request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $upload_request );
+
+		$data = get_upload_page_data( $upload_request );
+
+		$this->assertTrue( $data['clientSide'] );
+		$this->assertNotEmpty( $data['allImageSizes'] );
+		$this->assertIsInt( $data['bigImageSizeThreshold'] );
+		$this->assertIsBool( $data['imageStripMeta'] );
+		$this->assertIsInt( $data['imageMaxBitDepth'] );
+
+		$this->assertArrayHasKey( 'thumbnail', $data['allImageSizes'] );
+		$this->assertSame( 'thumbnail', $data['allImageSizes']['thumbnail']['name'] );
+		$this->assertIsInt( $data['allImageSizes']['thumbnail']['width'] );
+		$this->assertIsInt( $data['allImageSizes']['thumbnail']['height'] );
 	}
 
 	/**
@@ -170,8 +206,6 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @covers \UploadFromPhone\get_upload_page_data
 	 */
 	public function test_upload_page_data_is_limited_to_the_allowed_types(): void {
-		$this->enable_client_side_processing();
-
 		$upload_request = Upload_Request::create( [ 'allowed_types' => [ 'image' ] ] );
 		$this->assertInstanceOf( Upload_Request::class, $upload_request );
 
@@ -188,8 +222,6 @@ class Test_Functions extends WP_UnitTestCase {
 	 * @covers \UploadFromPhone\get_upload_page_data
 	 */
 	public function test_upload_page_data_allows_everything_when_unrestricted(): void {
-		$this->enable_client_side_processing();
-
 		$upload_request = Upload_Request::create( [] );
 		$this->assertInstanceOf( Upload_Request::class, $upload_request );
 
@@ -256,10 +288,52 @@ class Test_Functions extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The upload page follows WordPress. Where core reports client-side media
+	 * processing available, the phone gets it too, without anyone opting in.
+	 *
 	 * @covers \UploadFromPhone\has_client_side_processing
 	 */
-	public function test_client_side_processing_is_off_by_default(): void {
-		$this->assertFalse( has_client_side_processing() );
+	public function test_client_side_processing_is_on_where_wordpress_offers_it(): void {
+		$this->enable_client_side_processing();
+
+		remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+
+		$this->assertTrue( has_client_side_processing() );
+	}
+
+	/**
+	 * Core reports the pipeline unavailable outside a secure context, because
+	 * `SharedArrayBuffer` is not handed out there. The upload page has no
+	 * business overriding that.
+	 *
+	 * @covers \UploadFromPhone\has_client_side_processing
+	 */
+	public function test_client_side_processing_follows_wordpress_when_it_says_no(): void {
+		$this->enable_client_side_processing();
+
+		add_filter( 'wp_client_side_media_processing_enabled', '__return_false', 20 );
+
+		try {
+			$this->assertFalse( has_client_side_processing() );
+		} finally {
+			remove_filter( 'wp_client_side_media_processing_enabled', '__return_false', 20 );
+		}
+	}
+
+	/**
+	 * @covers \UploadFromPhone\has_client_side_processing
+	 */
+	public function test_client_side_processing_can_be_turned_off(): void {
+		$this->enable_client_side_processing();
+
+		remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+		add_filter( 'upload_from_phone_client_side_processing', '__return_false' );
+
+		try {
+			$this->assertFalse( has_client_side_processing() );
+		} finally {
+			remove_filter( 'upload_from_phone_client_side_processing', '__return_false' );
+		}
 	}
 
 	/**
@@ -268,7 +342,7 @@ class Test_Functions extends WP_UnitTestCase {
 	 *
 	 * @covers \UploadFromPhone\has_client_side_processing
 	 */
-	public function test_client_side_processing_requires_both_the_filter_and_the_script(): void {
+	public function test_client_side_processing_requires_the_script(): void {
 		// WordPress bundles wp-upload-media as a core script as of WP 7.1, so it
 		// may already be registered here — deregister it to actually exercise
 		// the "filter without the script" branch, and restore the original
@@ -279,20 +353,126 @@ class Test_Functions extends WP_UnitTestCase {
 			wp_deregister_script( 'wp-upload-media' );
 		}
 
+		add_filter( 'wp_client_side_media_processing_enabled', '__return_true' );
 		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
 
 		try {
 			$this->assertFalse( has_client_side_processing() );
 		} finally {
+			remove_filter( 'wp_client_side_media_processing_enabled', '__return_true' );
 			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
 
 			if ( $original_registration ) {
 				wp_scripts()->registered['wp-upload-media'] = $original_registration;
 			}
 		}
+	}
 
+	/**
+	 * Cross-origin isolation is what makes `SharedArrayBuffer` available, and
+	 * without it the pipeline loads but quietly does no image work at all.
+	 *
+	 * @dataProvider data_chromium_user_agents
+	 * @covers \UploadFromPhone\get_chromium_major_version
+	 *
+	 * @param string   $user_agent User agent string.
+	 * @param int|null $expected   Expected major version.
+	 * @return void
+	 */
+	public function test_chromium_version_is_read_from_the_user_agent( string $user_agent, ?int $expected ): void {
+		$original = $_SERVER['HTTP_USER_AGENT'] ?? null;
+
+		$_SERVER['HTTP_USER_AGENT'] = $user_agent;
+
+		try {
+			$this->assertSame( $expected, get_chromium_major_version() );
+		} finally {
+			if ( null === $original ) {
+				unset( $_SERVER['HTTP_USER_AGENT'] );
+			} else {
+				$_SERVER['HTTP_USER_AGENT'] = $original;
+			}
+		}
+	}
+
+	/**
+	 * Data provider.
+	 *
+	 * @return array<string, array{0: string, 1: int|null}>
+	 */
+	public function data_chromium_user_agents(): array {
+		return [
+			'Chrome on Android' => [
+				'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
+				140,
+			],
+			'Chrome before DIP' => [
+				'Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+				120,
+			],
+			'Safari on iOS'     => [
+				'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+				null,
+			],
+			'nothing at all'    => [ '', null ],
+		];
+	}
+
+	/**
+	 * @covers \UploadFromPhone\send_cross_origin_isolation_headers
+	 */
+	public function test_no_isolation_headers_without_client_side_processing(): void {
+		$this->disable_client_side_processing();
+
+		// Nothing to isolate for: the page is not going to process anything.
+		$this->assertFalse( has_client_side_processing() );
+
+		send_cross_origin_isolation_headers();
+
+		$this->assertSame( [], $this->get_isolation_headers() );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\send_cross_origin_isolation_headers
+	 */
+	public function test_isolation_headers_can_be_turned_off(): void {
 		$this->enable_client_side_processing();
-		$this->assertTrue( has_client_side_processing() );
+
+		add_filter( 'upload_from_phone_cross_origin_isolation', '__return_false' );
+
+		try {
+			send_cross_origin_isolation_headers();
+
+			$this->assertSame( [], $this->get_isolation_headers() );
+		} finally {
+			remove_filter( 'upload_from_phone_cross_origin_isolation', '__return_false' );
+		}
+	}
+
+	/**
+	 * Returns the cross-origin isolation headers sent so far.
+	 *
+	 * PHPUnit runs without a web server, so `header()` records rather than
+	 * sends and `headers_list()` is empty; the real assertions about which
+	 * header goes to which browser live in the end-to-end tests, which can see
+	 * a response. What can be checked here is that nothing is sent when
+	 * nothing should be.
+	 *
+	 * @return string[] Header lines.
+	 */
+	private function get_isolation_headers(): array {
+		if ( ! function_exists( 'xdebug_get_headers' ) ) {
+			$this->markTestSkipped( 'Requires Xdebug to inspect sent headers.' );
+		}
+
+		return array_values(
+			array_filter(
+				xdebug_get_headers(),
+				static function ( string $header ): bool {
+					return (bool) preg_match( '#^(Document-Isolation-Policy|Cross-Origin-)#i', $header );
+				}
+			)
+		);
 	}
 
 	/**
@@ -393,6 +573,22 @@ class Test_Functions extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Turns off the client-side processing path for the duration of a test.
+	 *
+	 * Cannot be left to the environment: WordPress reports the pipeline
+	 * available in any secure context, and `localhost` — which is where a test
+	 * install runs — counts as one. So the path is on by default here, exactly
+	 * as it would be on a real site over HTTPS.
+	 *
+	 * @return void
+	 */
+	private function disable_client_side_processing(): void {
+		add_filter( 'upload_from_phone_client_side_processing', '__return_false' );
+
+		$this->reset_client_side_processing = true;
+	}
+
+	/**
 	 * Turns on the client-side processing path for the duration of a test.
 	 *
 	 * The filter alone is not enough: the queue is only used where WordPress
@@ -409,6 +605,11 @@ class Test_Functions extends WP_UnitTestCase {
 
 		wp_register_script( 'wp-upload-media', 'https://example.org/upload-media.js', [], '1.0', true );
 
+		/*
+		 * Core only reports client-side processing available in a secure
+		 * context, and the test install is served over plain HTTP.
+		 */
+		add_filter( 'wp_client_side_media_processing_enabled', '__return_true' );
 		add_filter( 'upload_from_phone_client_side_processing', '__return_true' );
 
 		$this->reset_client_side_processing = true;
@@ -421,7 +622,9 @@ class Test_Functions extends WP_UnitTestCase {
 	 */
 	public function tear_down(): void {
 		if ( $this->reset_client_side_processing ) {
+			remove_filter( 'wp_client_side_media_processing_enabled', '__return_true' );
 			remove_filter( 'upload_from_phone_client_side_processing', '__return_true' );
+			remove_filter( 'upload_from_phone_client_side_processing', '__return_false' );
 
 			if ( $this->registered_wp_upload_media_script ) {
 				wp_deregister_script( 'wp-upload-media' );

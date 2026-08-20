@@ -127,7 +127,7 @@ if ( ! function_exists( __NAMESPACE__ . '\render_upload_page' ) ) :
 						?>
 					</p>
 
-					<div class="hide-if-no-js upload-from-phone__root" id="upload-from-phone-root"></div>
+					<div class="hide-if-no-js" id="upload-from-phone-root"></div>
 
 					<p class="hide-if-js upload-from-phone__hint">
 						<?php esc_html_e( 'Uploading requires JavaScript. Please enable it in your browser settings.', 'upload-from-phone' ); ?>

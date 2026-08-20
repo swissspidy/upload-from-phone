@@ -75,6 +75,18 @@ function register_rest_routes(): void {
 }
 
 /**
+ * Lets upload requests reach core's media endpoints.
+ *
+ * Hooked early and unconditionally: the access it grants is decided per
+ * request, and only ever while one is being dispatched.
+ *
+ * @return void
+ */
+function register_media_endpoint_access(): void {
+	( new Media_Endpoint_Access() )->register();
+}
+
+/**
  * Registers the plugin's scripts and styles.
  *
  * @return void
@@ -85,12 +97,13 @@ function register_assets(): void {
 		$dependencies = $asset['dependencies'];
 
 		/*
-		 * The upload page reads the media processing queue off the global rather
-		 * than importing it, so that it degrades gracefully where the package is
-		 * missing. The dependency therefore has to be declared by hand.
+		 * The upload page reads the media processing queue off the global
+		 * instead of importing it, so that turning client-side processing off
+		 * leaves a page that still uploads rather than one that fails to load.
+		 * The build cannot see a dependency that is never imported, so when the
+		 * queue is in play the script has to be declared by hand.
 		 */
 		if ( 'view' === $handle && has_client_side_processing() ) {
-			$dependencies[] = 'wp-data';
 			$dependencies[] = 'wp-upload-media';
 		}
 
@@ -155,29 +168,110 @@ function enqueue_block_editor_assets(): void {
  * Determines whether the upload page uses client-side media processing.
  *
  * WordPress ships the whole optimisation pipeline — HEIC conversion, resizing,
- * compression — as `wp-upload-media`, and the upload page knows how to route
- * files through it. It is off by default all the same, for two reasons.
+ * cropping to the registered image sizes, compression — as `wp-upload-media`,
+ * and the upload page routes files through it when the site has it.
  *
- * The pipeline pulls in `wp-components`, `wp-preferences`, and the image and
- * video conversion scaffolding: a serious download for a page whose entire job
- * is a file picker, on a device that is very likely on mobile data. And the
- * case it would help most with is already handled — iOS converts HEIC to JPEG
- * on its way through a file input.
- *
- * Sites that would rather spend the bytes can turn it on.
+ * Core's own switch is checked first, so a site that has turned the feature off
+ * has turned it off here too. It also covers the case that matters most on a
+ * phone: the pipeline needs `SharedArrayBuffer`, which needs a secure context,
+ * so core reports it unavailable on a site that is not served over HTTPS.
  *
  * @return bool Whether to use client-side media processing.
  */
 function has_client_side_processing(): bool {
+	if ( ! wp_script_is( 'wp-upload-media', 'registered' ) ) {
+		return false;
+	}
+
+	// Guarded so that a site running below the required version degrades to
+	// plain uploads rather than fataling on the way to the file picker.
+	if (
+		function_exists( 'wp_is_client_side_media_processing_enabled' )
+		&& ! wp_is_client_side_media_processing_enabled()
+	) {
+		return false;
+	}
+
 	/**
 	 * Filters whether the upload page uses client-side media processing.
 	 *
-	 * Has no effect where the `wp-upload-media` script is not registered.
+	 * Has no effect where WordPress has it turned off already.
 	 *
-	 * @param bool $enabled Whether to use client-side media processing. Default false.
+	 * @param bool $enabled Whether to use client-side media processing. Default true.
 	 */
-	return wp_script_is( 'wp-upload-media', 'registered' )
-		&& (bool) apply_filters( 'upload_from_phone_client_side_processing', false );
+	return (bool) apply_filters( 'upload_from_phone_client_side_processing', true );
+}
+
+/**
+ * Returns the major version of the requesting Chromium-based browser.
+ *
+ * Mirrors core's `wp_get_chromium_major_version()`, kept separate so that this
+ * file does not depend on a function added in the same release as the feature.
+ *
+ * @return int|null Major version, or null if the browser is not Chromium-based.
+ */
+function get_chromium_major_version(): ?int {
+	$user_agent = isset( $_SERVER['HTTP_USER_AGENT'] )
+		? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) )
+		: '';
+
+	if ( '' === $user_agent ) {
+		return null;
+	}
+
+	if ( preg_match( '/Chrome\/(\d+)/', $user_agent, $matches ) ) {
+		return (int) $matches[1];
+	}
+
+	return null;
+}
+
+/**
+ * Sends the headers that put the upload page in a cross-origin isolated context.
+ *
+ * The image pipeline runs on wasm-vips, which needs `SharedArrayBuffer`, which
+ * browsers only hand out to cross-origin isolated documents. Without these
+ * headers the queue still loads, but every operation that would resize, crop,
+ * or compress an image quietly reports itself as unsupported and the file goes
+ * up untouched.
+ *
+ * Chromium 137+ gets Document-Isolation-Policy, which isolates this document
+ * without imposing anything on the rest of the site, and is what core sends in
+ * the editor. Everything else gets the older COOP/COEP pair, which core
+ * deliberately does not send in wp-admin: COEP applies to the whole document
+ * and breaks plugins that embed cross-origin iframes. This page is ours alone
+ * and loads nothing but its own same-origin assets, so the fallback is safe
+ * here and gets the pipeline working on considerably more phones.
+ *
+ * @return void
+ */
+function send_cross_origin_isolation_headers(): void {
+	if ( ! has_client_side_processing() || headers_sent() ) {
+		return;
+	}
+
+	/**
+	 * Filters whether to make the upload page cross-origin isolated.
+	 *
+	 * Turning this off leaves client-side media processing loaded but unable to
+	 * do any image work, so it is only worth doing to debug a conflict.
+	 *
+	 * @param bool $enabled Whether to send cross-origin isolation headers. Default true.
+	 */
+	if ( ! apply_filters( 'upload_from_phone_cross_origin_isolation', true ) ) {
+		return;
+	}
+
+	$chromium_version = get_chromium_major_version();
+
+	if ( null !== $chromium_version && $chromium_version >= 137 ) {
+		header( 'Document-Isolation-Policy: isolate-and-credentialless' );
+
+		return;
+	}
+
+	header( 'Cross-Origin-Opener-Policy: same-origin' );
+	header( 'Cross-Origin-Embedder-Policy: require-corp' );
 }
 
 /**
@@ -188,6 +282,10 @@ function has_client_side_processing(): bool {
  * and the page has to behave the same way on every theme, so the plugin's own
  * handles are printed directly instead. Dependencies still resolve normally.
  *
+ * Skipping `wp_head()` does mean skipping everything else it prints, and one of
+ * those things is load-bearing here: the script module import map. See
+ * print_script_module_import_map() below.
+ *
  * @return void
  */
 function print_upload_page_assets(): void {
@@ -197,6 +295,37 @@ function print_upload_page_assets(): void {
 
 	wp_styles()->do_items( [ 'upload-from-phone-view' ] );
 	wp_scripts()->do_items( [ 'upload-from-phone-view' ] );
+
+	print_script_module_import_map();
+}
+
+/**
+ * Prints the import map for script modules the printed scripts pull in.
+ *
+ * The media processing queue does its heavy lifting in modules it imports on
+ * demand rather than up front — `@wordpress/vips/worker` for images and
+ * `@wordpress/video-conversion/worker` for video. Those are script modules, not
+ * classic scripts, and a bare specifier like `@wordpress/vips/worker` only
+ * resolves to a URL through an import map.
+ *
+ * WordPress prints that map from `wp_head()`, which this page does not call. So
+ * without this, everything loads and looks right, the queue accepts a file,
+ * takes it as far as needing vips, and the import never resolves: no error, no
+ * upload, a phone that sits there. It is printed after the scripts because the
+ * map is built by walking what `WP_Scripts` has queued, done, or still to do.
+ *
+ * Deliberately no `modulepreload` to go with it. The wasm these modules pull in
+ * is measured in megabytes, and fetching it while someone is still deciding
+ * which photo to send is not a trade this page should make on mobile data.
+ *
+ * @return void
+ */
+function print_script_module_import_map(): void {
+	if ( ! has_client_side_processing() ) {
+		return;
+	}
+
+	wp_script_modules()->print_import_map();
 }
 
 /**
@@ -238,6 +367,8 @@ function filter_template_include( string $template ): string {
 
 	nocache_headers();
 
+	send_cross_origin_isolation_headers();
+
 	/**
 	 * Filters the template used to render the upload page.
 	 *
@@ -247,6 +378,31 @@ function filter_template_include( string $template ): string {
 		'upload_from_phone_template',
 		UPLOAD_FROM_PHONE_DIR . '/templates/upload-page.php'
 	);
+}
+
+/**
+ * Returns a list of every registered image size, in the shape the queue wants.
+ *
+ * Mirrors what WordPress puts on the REST index for the editor. The upload page
+ * cannot read that: it is exposed only to users who may upload files, and
+ * whoever opened the link is not logged in at all — so the sizes travel with
+ * the page instead.
+ *
+ * @return array Registered image sizes, keyed by size name.
+ *
+ * @phpstan-return array<string, array<string, mixed>>
+ */
+function get_all_image_sizes(): array {
+	$sizes = wp_get_registered_image_subsizes();
+
+	foreach ( $sizes as $name => &$size ) {
+		$size['height'] = (int) $size['height'];
+		$size['width']  = (int) $size['width'];
+		$size['name']   = $name;
+	}
+	unset( $size );
+
+	return $sizes;
 }
 
 /**
@@ -270,19 +426,52 @@ function get_upload_page_data( Upload_Request $upload_request ): array {
 		);
 	}
 
-	return [
-		'restUrl'           => rest_url( 'upload-from-phone/v1/upload-requests/' . $upload_request->get_token() . '/media' ),
+	/*
+	 * The upload itself goes over XMLHttpRequest rather than apiFetch, so that
+	 * the phone can show how far along a large photo is, which means the
+	 * endpoint has to be addressed absolutely.
+	 */
+	$data = [
+		'mediaUrl'          => rest_url( 'wp/v2/media' ),
 		'token'             => $upload_request->get_token(),
 		'allowedTypes'      => $allowed_types,
-		// Only the client-side processing queue reads this, so it is only sent
-		// when that queue is in play. The server checks types regardless.
-		'allowedMimeTypes'  => has_client_side_processing() ? $mime_types : null,
+		'allowedMimeTypes'  => $mime_types,
 		'accept'            => $upload_request->get_accept(),
 		'multiple'          => $upload_request->allows_multiple(),
 		'maxFiles'          => $upload_request->get_max_files(),
 		'maxUploadFileSize' => wp_max_upload_size(),
 		'expiresAt'         => $upload_request->get_expires_at(),
+		'clientSide'        => has_client_side_processing(),
 	];
+
+	if ( ! $data['clientSide'] ) {
+		return $data;
+	}
+
+	/*
+	 * The values the image pipeline needs in order to produce the same files
+	 * the server would have. Each is the site's own setting, read through the
+	 * same filter the server-side image editor reads it through, so a plugin
+	 * that changes one changes it for client-generated images too.
+	 */
+
+	/** This filter is documented in wp-admin/includes/image.php */
+	$data['bigImageSizeThreshold'] = (int) apply_filters( 'big_image_size_threshold', 2560, [ 0, 0 ], '', 0 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+
+	/** This filter is documented in wp-includes/class-wp-image-editor-imagick.php */
+	$data['imageStripMeta'] = (bool) apply_filters( 'image_strip_meta', true ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+
+	/*
+	 * On the server this filter receives the decoded image's actual bit depth.
+	 * Nothing is decoded server-side on this path, so it is applied with 16 —
+	 * the deepest vips will produce — as both the value and the current depth.
+	 */
+	/** This filter is documented in wp-includes/class-wp-image-editor-imagick.php */
+	$data['imageMaxBitDepth'] = (int) apply_filters( 'image_max_bit_depth', 16, 16 ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound
+
+	$data['allImageSizes'] = get_all_image_sizes();
+
+	return $data;
 }
 
 /**
