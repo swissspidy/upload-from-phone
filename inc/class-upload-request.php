@@ -310,7 +310,11 @@ final class Upload_Request {
 	 * @return int Unix timestamp.
 	 */
 	public function get_expires_at(): int {
-		return (int) get_post_meta( $this->post->ID, self::META_EXPIRES_AT, true );
+		$expires_at = get_post_meta( $this->post->ID, self::META_EXPIRES_AT, true );
+
+		// A missing or unreadable expiry is treated as having passed: this is
+		// the one value that decides whether a link still works.
+		return is_numeric( $expires_at ) ? (int) $expires_at : 0;
 	}
 
 	/**
@@ -328,9 +332,7 @@ final class Upload_Request {
 	 * @return string[] Allowed media types, e.g. `image`. Empty array means no restriction.
 	 */
 	public function get_allowed_types(): array {
-		$types = get_post_meta( $this->post->ID, self::META_ALLOWED_TYPES, true );
-
-		return is_array( $types ) ? array_values( array_filter( array_map( 'strval', $types ) ) ) : [];
+		return $this->get_string_list( self::META_ALLOWED_TYPES );
 	}
 
 	/**
@@ -341,9 +343,35 @@ final class Upload_Request {
 	 * @return string[] File type specifiers, e.g. `image/*` or `.jpg`.
 	 */
 	public function get_accept(): array {
-		$accept = get_post_meta( $this->post->ID, self::META_ACCEPT, true );
+		return $this->get_string_list( self::META_ACCEPT );
+	}
 
-		return is_array( $accept ) ? array_values( array_filter( array_map( 'strval', $accept ) ) ) : [];
+	/**
+	 * Reads a meta value holding a list of strings.
+	 *
+	 * Meta comes back as whatever was stored, so anything that is not a
+	 * non-empty string is dropped rather than coerced: both lists read through
+	 * here hold names — media types and file type specifiers — and a value of
+	 * any other shape is not one.
+	 *
+	 * @param string $meta_key Meta key to read.
+	 * @return string[] The stored strings, in the order they were stored.
+	 */
+	private function get_string_list( string $meta_key ): array {
+		$values = get_post_meta( $this->post->ID, $meta_key, true );
+
+		if ( ! is_array( $values ) ) {
+			return [];
+		}
+
+		return array_values(
+			array_filter(
+				$values,
+				static function ( $value ): bool {
+					return is_string( $value ) && '' !== $value;
+				}
+			)
+		);
 	}
 
 	/**
@@ -385,7 +413,14 @@ final class Upload_Request {
 		// Passed explicitly: this key holds one row per uploaded file, not a single value.
 		$ids = get_post_meta( $this->post->ID, self::META_ATTACHMENT_ID, false );
 
-		return array_values( array_map( 'intval', (array) $ids ) );
+		if ( ! is_array( $ids ) ) {
+			return [];
+		}
+
+		// Anything that is not a number is dropped rather than cast: casting
+		// would turn it into attachment 0, which get_post() resolves to
+		// whatever post happens to be current.
+		return array_values( array_map( 'intval', array_filter( $ids, 'is_numeric' ) ) );
 	}
 
 	/**
@@ -446,7 +481,7 @@ final class Upload_Request {
 		foreach ( $attachment_ids as $attachment_id ) {
 			$since = get_post_meta( $attachment_id, self::META_PENDING_SINCE, true );
 
-			if ( '' !== $since && (int) $since > $cutoff ) {
+			if ( is_numeric( $since ) && (int) $since > $cutoff ) {
 				$pending[] = $attachment_id;
 			}
 		}
@@ -526,7 +561,7 @@ final class Upload_Request {
 		 * by that file's own finalize — and were they ever to be, the file
 		 * would simply wait out the stall timeout rather than come to harm.
 		 */
-		if ( '' === (string) get_post_meta( $attachment_id, self::META_PENDING_SINCE, true ) ) {
+		if ( ! is_numeric( get_post_meta( $attachment_id, self::META_PENDING_SINCE, true ) ) ) {
 			return;
 		}
 

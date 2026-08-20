@@ -9,6 +9,7 @@ declare(strict_types = 1);
 
 namespace UploadFromPhone;
 
+use stdClass;
 use WP_Error;
 use WP_Post;
 use WP_REST_Request;
@@ -321,7 +322,7 @@ class Media_Endpoint_Access {
 			! is_wp_error( $response ) &&
 			$request instanceof WP_REST_Request
 		) {
-			$attachment_id = (int) $request['id'];
+			$attachment_id = $this->get_attachment_id( $request );
 
 			if ( 'finalize' === $this->operation ) {
 				/*
@@ -403,7 +404,7 @@ class Media_Endpoint_Access {
 		 * over unrelated media: without it, any live token would be a licence
 		 * to attach a file to any attachment ID on the site.
 		 */
-		$attachment_id = (int) $request['id'];
+		$attachment_id = $this->get_attachment_id( $request );
 
 		if ( $attachment_id <= 0 || ! \in_array( $attachment_id, $upload_request->get_attachment_ids(), true ) ) {
 			return new WP_Error(
@@ -414,6 +415,22 @@ class Media_Endpoint_Access {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Reads the attachment ID off a request.
+	 *
+	 * Request parameters arrive as whatever was sent. The routes this class
+	 * grants access to only match `id` against digits, so anything else did
+	 * not come from one of them and is no attachment of this request's.
+	 *
+	 * @param WP_REST_Request $request The request.
+	 * @return int Attachment ID, or 0 if the parameter was not a number.
+	 */
+	private function get_attachment_id( WP_REST_Request $request ): int {
+		$attachment_id = $request['id'];
+
+		return is_numeric( $attachment_id ) ? (int) $attachment_id : 0;
 	}
 
 	/**
@@ -556,7 +573,7 @@ class Media_Endpoint_Access {
 			return false;
 		}
 
-		$capability = isset( $args[0] ) ? (string) $args[0] : '';
+		$capability = isset( $args[0] ) && \is_string( $args[0] ) ? $args[0] : '';
 
 		// Creating an attachment, and the `create_posts` capability that the
 		// attachment post type maps to the same thing.
@@ -569,7 +586,7 @@ class Media_Endpoint_Access {
 			return false;
 		}
 
-		$object_id = isset( $args[2] ) ? (int) $args[2] : 0;
+		$object_id = isset( $args[2] ) && is_numeric( $args[2] ) ? (int) $args[2] : 0;
 
 		return $object_id > 0
 			&& \in_array( $object_id, $this->upload_request->get_attachment_ids(), true );
@@ -628,12 +645,12 @@ class Media_Endpoint_Access {
 	 * author or parent post is precisely the thing a leaked token should not
 	 * be able to do.
 	 *
-	 * @param object          $prepared Attachment about to be inserted.
+	 * @param stdClass|mixed  $prepared Attachment about to be inserted.
 	 * @param WP_REST_Request $request  The request.
-	 * @return object Filtered attachment.
+	 * @return stdClass|mixed Filtered attachment.
 	 */
 	public function filter_pre_insert_attachment( $prepared, $request ) {
-		if ( ! $this->upload_request instanceof Upload_Request || ! \is_object( $prepared ) ) {
+		if ( ! $this->upload_request instanceof Upload_Request || ! $prepared instanceof stdClass ) {
 			return $prepared;
 		}
 
