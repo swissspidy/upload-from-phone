@@ -24,6 +24,11 @@ const NETWORK_ERROR = __(
 	'upload-from-phone'
 );
 
+const MALFORMED_RESPONSE_ERROR = __(
+	'The file was uploaded, but the site sent back something unreadable. Please tell whoever sent you this link.',
+	'upload-from-phone'
+);
+
 /**
  * Extracts a human-readable message from whatever a request rejected with.
  *
@@ -147,10 +152,25 @@ export function createAttachment(
 
 		request.addEventListener( 'load', () => {
 			if ( request.status >= 200 && request.status < 300 ) {
-				onProgress?.( 1 );
-				resolve(
-					transformAttachment( request.response as RestAttachment )
-				);
+				/*
+				 * `responseType` is `json`, so a body that is not valid JSON —
+				 * a proxy's error page served with a 200, a truncated
+				 * response — arrives as null and cannot be transformed.
+				 * Throwing here would escape the listener rather than the
+				 * promise, leaving the caller waiting on an upload that has
+				 * already finished.
+				 */
+				try {
+					const attachment = transformAttachment(
+						request.response as RestAttachment
+					);
+
+					onProgress?.( 1 );
+					resolve( attachment );
+				} catch {
+					reject( new Error( MALFORMED_RESPONSE_ERROR ) );
+				}
+
 				return;
 			}
 

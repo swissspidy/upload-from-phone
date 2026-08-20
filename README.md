@@ -70,6 +70,7 @@ Where WordPress reports client-side processing unavailable — a site not served
 |---|---|
 | `upload_from_phone_request_ttl` | How long a link stays valid, in seconds. Default 15 minutes, floor of 1 minute. |
 | `upload_from_phone_max_files` | Maximum files per link for multi-file requests. Default 20. |
+| `upload_from_phone_stall_timeout` | How long a file may go untouched before the browser is assumed to have given up on it, in seconds. Default 2 minutes. |
 | `upload_from_phone_rewrite_slug` | URL prefix of the upload page. Default `upload`. |
 | `upload_from_phone_template` | Absolute path to the template rendering the upload page. |
 | `upload_from_phone_client_side_processing` | Whether the upload page routes files through `wp-upload-media`. Default `true`, where WordPress offers it. |
@@ -109,6 +110,8 @@ add_action(
 The last three are core's own. The phone sends no nonce, deliberately: the REST API treats a nonce-less request as logged out, which is exactly the permission model wanted here, and the token in the URL is the only credential that counts.
 
 An attachment the browser is still working on is withheld from the editor until `finalize` lands. It exists from the moment its file is uploaded, but its sizes and its final URL only arrive at the end, and a block that saw it early would keep pointing at a file about to be replaced.
+
+Withheld is not withheld forever. A closed tab, a lost signal, or a pipeline that fails after the file is already up would otherwise leave a perfectly good upload stranded, so a file nothing has happened to for a while is given up on and handed over short of its generated sizes — losing a `srcset` rather than losing the photo. The clock runs from the last thing the browser did, not from when the file arrived, so a large image that legitimately takes a while to work through keeps resetting it as each size lands.
 
 ## Development
 

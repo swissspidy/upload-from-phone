@@ -101,6 +101,13 @@ function useProgressUpdates(): number {
 }
 
 /**
+ * Message shown against a file the upload request had no room for.
+ */
+function getNoRoomMessage(): string {
+	return __( 'This link has no room for more files.', 'upload-from-phone' );
+}
+
+/**
  * Keeps the list of files that are no longer in flight.
  *
  * The queue drops an item the moment it succeeds, which is the right thing for
@@ -189,12 +196,24 @@ export function useQueueUploader( store: typeof uploadStore ): Uploader {
 		[ store ]
 	) as QueueItem[];
 
+	const remaining = Math.max(
+		0,
+		settings.maxFiles - uploadedCount - items.length
+	);
+
 	const addFiles = useCallback(
 		( files: File[] ) => {
-			const accepted = files.slice(
-				0,
-				settings.maxFiles - uploadedCount - items.length
-			);
+			const accepted = files.slice( 0, remaining );
+
+			// Say so rather than dropping them: a file that simply vanishes
+			// from the list looks like the page losing track of it.
+			for ( const file of files.slice( remaining ) ) {
+				settle( {
+					name: file.name,
+					state: 'failed',
+					error: getNoRoomMessage(),
+				} );
+			}
 
 			if ( ! accepted.length ) {
 				return;
@@ -225,7 +244,7 @@ export function useQueueUploader( store: typeof uploadStore ): Uploader {
 					} ),
 			} );
 		},
-		[ addItems, items.length, settle, uploadedCount ]
+		[ addItems, remaining, settle ]
 	);
 
 	const rows = useMemo(
@@ -246,6 +265,7 @@ export function useQueueUploader( store: typeof uploadStore ): Uploader {
 	return {
 		rows,
 		uploadedCount,
+		remaining,
 		isBusy: items.length > 0,
 		addFiles,
 	};
@@ -276,12 +296,24 @@ export function useDirectUploader(): Uploader {
 		[]
 	);
 
+	const remaining = Math.max(
+		0,
+		settings.maxFiles - uploadedCount - activeRows.length
+	);
+
 	const addFiles = useCallback(
 		( files: File[] ) => {
-			const accepted = files.slice(
-				0,
-				settings.maxFiles - uploadedCount - activeRows.length
-			);
+			const accepted = files.slice( 0, remaining );
+
+			// Say so rather than dropping them: a file that simply vanishes
+			// from the list looks like the page losing track of it.
+			for ( const file of files.slice( remaining ) ) {
+				settle( {
+					name: file.name,
+					state: 'failed',
+					error: getNoRoomMessage(),
+				} );
+			}
 
 			if ( ! accepted.length ) {
 				return;
@@ -365,12 +397,13 @@ export function useDirectUploader(): Uploader {
 				isRunning.current = false;
 			} )();
 		},
-		[ activeRows.length, settle, update, uploadedCount ]
+		[ remaining, settle, update ]
 	);
 
 	return {
 		rows: [ ...settledRows, ...activeRows ],
 		uploadedCount,
+		remaining,
 		isBusy: activeRows.length > 0,
 		addFiles,
 	};

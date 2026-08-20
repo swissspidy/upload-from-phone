@@ -21,6 +21,9 @@ const TEST_IMAGE = join(
 	'wordpress-logo-512x512.png'
 );
 
+/** A second, deliberately tiny image, for tests that just need two files. */
+const SECOND_TEST_IMAGE = join( __dirname, '..', 'assets', 'solid-64x64.png' );
+
 /** Matches core's endpoint for creating an attachment. */
 const CREATE_ENDPOINT = /\/wp\/v2\/media(\?|$)/;
 
@@ -31,15 +34,21 @@ const SIDELOAD_ENDPOINT = /\/wp\/v2\/media\/\d+\/sideload/;
 const FINALIZE_ENDPOINT = /\/wp\/v2\/media\/\d+\/finalize/;
 
 /**
- * Opens an upload request for a fresh Image block and returns its link.
+ * Opens an upload request for a fresh media block and returns its link.
  *
- * @param editor The editor utility.
+ * @param editor       The editor utility.
+ * @param [blockName]  Block to insert. Defaults to the Image block.
+ * @param [blockLabel] Accessible name of that block. Defaults to `Image`.
  */
-async function requestUpload( editor: Editor ) {
-	await editor.insertBlock( { name: 'core/image' } );
+async function requestUpload(
+	editor: Editor,
+	blockName = 'core/image',
+	blockLabel = 'Image'
+) {
+	await editor.insertBlock( { name: blockName } );
 
 	const imageBlock = editor.canvas.locator(
-		'role=document[name="Block: Image"i]'
+		`role=document[name="Block: ${ blockLabel }"i]`
 	);
 
 	await imageBlock
@@ -238,6 +247,52 @@ test.describe( 'Client-side media processing', () => {
 		 * earlier one that the finalize step then replaced.
 		 */
 		await expect( image ).toHaveAttribute( 'src', media[ 0 ].source_url );
+	} );
+
+	/**
+	 * A file the request has no room for used to be sliced off the batch with
+	 * nothing to show for it, which reads as the page losing track of it.
+	 */
+	test( 'files the link has no room for are reported, not dropped', async ( {
+		page,
+		secondPage,
+		editor,
+		requestUtils,
+	} ) => {
+		await requestUtils.activatePlugin( 'one-file-per-link' );
+
+		try {
+			/*
+			 * A Gallery, because the limit only means anything where more than
+			 * one file is allowed — an Image block is capped at one whatever
+			 * the filter says, and its file input refuses a second file
+			 * outright.
+			 */
+			const { uploadUrl } = await requestUpload(
+				editor,
+				'core/gallery',
+				'Gallery'
+			);
+
+			await secondPage.goto( uploadUrl );
+
+			// Two files for a link that takes one.
+			await secondPage
+				.locator( '#upload-from-phone-input' )
+				.setInputFiles( [ TEST_IMAGE, SECOND_TEST_IMAGE ] );
+
+			await expect(
+				secondPage.getByText( 'This link has no room for more files.' )
+			).toBeVisible( { timeout: 30_000 } );
+
+			// The one it did take still went up.
+			await expect(
+				secondPage.locator( '[data-status="done"]' )
+			).toHaveCount( 1, { timeout: 30_000 } );
+		} finally {
+			await requestUtils.deactivatePlugin( 'one-file-per-link' );
+			await page.reload();
+		}
 	} );
 
 	test( 'uploading still works with client-side processing turned off', async ( {

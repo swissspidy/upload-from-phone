@@ -56,9 +56,19 @@ final class Upload_Request {
 	public const META_ATTACHMENT_ID = 'ufph_attachment_id';
 
 	/**
-	 * Meta key holding the IDs of attachments that are still being processed.
+	 * Meta key holding the attachments that are still being processed.
+	 *
+	 * A single map of attachment ID to the Unix timestamp of the last thing the
+	 * browser did for it, rather than one row per attachment: what matters is
+	 * not only which files are outstanding but whether anything is still
+	 * happening to them.
 	 */
-	public const META_PENDING_ATTACHMENT_ID = 'ufph_pending_attachment_id';
+	public const META_PENDING_ATTACHMENTS = 'ufph_pending_attachments';
+
+	/**
+	 * How long a pending attachment may go untouched before it is given up on.
+	 */
+	public const DEFAULT_STALL_TIMEOUT = 2 * MINUTE_IN_SECONDS;
 
 	/**
 	 * Default lifetime of an upload request, in seconds.
@@ -371,15 +381,76 @@ final class Upload_Request {
 	}
 
 	/**
-	 * Returns the IDs of attachments the browser has not finished working on.
+	 * Returns how long a pending attachment may go untouched.
+	 *
+	 * @return int Timeout in seconds.
+	 */
+	public static function get_stall_timeout(): int {
+		/**
+		 * Filters how long a file may go untouched before the browser is
+		 * assumed to have given up on it.
+		 *
+		 * Measured from the last thing that happened to the file, not from when
+		 * it was uploaded, so a large photo that legitimately takes a while to
+		 * work through does not trip it.
+		 *
+		 * @param int $timeout Timeout in seconds. Default 2 minutes.
+		 */
+		$timeout = (int) apply_filters( 'upload_from_phone_stall_timeout', self::DEFAULT_STALL_TIMEOUT );
+
+		return max( 1, $timeout );
+	}
+
+	/**
+	 * Returns every attachment recorded as pending, with its last activity.
+	 *
+	 * @return array Map of attachment ID to Unix timestamp.
+	 *
+	 * @phpstan-return array<int, int>
+	 */
+	private function get_pending_attachments(): array {
+		$pending = get_post_meta( $this->post->ID, self::META_PENDING_ATTACHMENTS, true );
+
+		if ( ! \is_array( $pending ) ) {
+			return [];
+		}
+
+		$result = [];
+
+		foreach ( $pending as $attachment_id => $timestamp ) {
+			$attachment_id = (int) $attachment_id;
+
+			if ( $attachment_id > 0 ) {
+				$result[ $attachment_id ] = (int) $timestamp;
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Returns the IDs of attachments the browser is still working on.
+	 *
+	 * A file nothing has happened to for a while is not counted, however the
+	 * browser came to stop working on it — a closed tab, a lost signal, a
+	 * pipeline that failed after the file was already uploaded. The file itself
+	 * arrived intact in every one of those cases, so continuing to withhold it
+	 * would lose the upload outright rather than merely leave it short of its
+	 * generated sizes.
 	 *
 	 * @return int[] Attachment IDs.
 	 */
 	public function get_pending_attachment_ids(): array {
-		// Passed explicitly: this key holds one row per pending file.
-		$ids = get_post_meta( $this->post->ID, self::META_PENDING_ATTACHMENT_ID, false );
+		$cutoff = time() - self::get_stall_timeout();
 
-		return array_values( array_map( 'intval', (array) $ids ) );
+		$pending = array_filter(
+			$this->get_pending_attachments(),
+			static function ( int $timestamp ) use ( $cutoff ): bool {
+				return $timestamp > $cutoff;
+			}
+		);
+
+		return array_map( 'intval', array_keys( $pending ) );
 	}
 
 	/**
@@ -430,9 +501,37 @@ final class Upload_Request {
 	public function add_attachment( int $attachment_id, bool $is_pending = false ): void {
 		add_post_meta( $this->post->ID, self::META_ATTACHMENT_ID, $attachment_id );
 
-		if ( $is_pending ) {
-			add_post_meta( $this->post->ID, self::META_PENDING_ATTACHMENT_ID, $attachment_id );
+		if ( ! $is_pending ) {
+			return;
 		}
+
+		$pending = $this->get_pending_attachments();
+
+		$pending[ $attachment_id ] = time();
+
+		update_post_meta( $this->post->ID, self::META_PENDING_ATTACHMENTS, $pending );
+	}
+
+	/**
+	 * Records that the browser is still working on an attachment.
+	 *
+	 * Every generated image size the browser sends is evidence that it has not
+	 * gone away, which is what keeps a long job from being mistaken for a
+	 * stalled one.
+	 *
+	 * @param int $attachment_id Attachment ID.
+	 * @return void
+	 */
+	public function touch_pending_attachment( int $attachment_id ): void {
+		$pending = $this->get_pending_attachments();
+
+		if ( ! isset( $pending[ $attachment_id ] ) ) {
+			return;
+		}
+
+		$pending[ $attachment_id ] = time();
+
+		update_post_meta( $this->post->ID, self::META_PENDING_ATTACHMENTS, $pending );
 	}
 
 	/**
@@ -442,7 +541,21 @@ final class Upload_Request {
 	 * @return void
 	 */
 	public function mark_attachment_ready( int $attachment_id ): void {
-		delete_post_meta( $this->post->ID, self::META_PENDING_ATTACHMENT_ID, $attachment_id );
+		$pending = $this->get_pending_attachments();
+
+		if ( ! isset( $pending[ $attachment_id ] ) ) {
+			return;
+		}
+
+		unset( $pending[ $attachment_id ] );
+
+		if ( empty( $pending ) ) {
+			delete_post_meta( $this->post->ID, self::META_PENDING_ATTACHMENTS );
+
+			return;
+		}
+
+		update_post_meta( $this->post->ID, self::META_PENDING_ATTACHMENTS, $pending );
 	}
 
 	/**

@@ -83,6 +83,14 @@ export interface Uploader {
 	rows: UploadRow[];
 	/** How many files have been uploaded successfully. */
 	uploadedCount: number;
+	/**
+	 * How many more files this upload request will take.
+	 *
+	 * Counts what is still in flight as well as what has landed: a file that
+	 * has been handed over occupies its slot from that moment, whatever stage
+	 * it has reached.
+	 */
+	remaining: number;
 	/** Whether anything is still in flight. */
 	isBusy: boolean;
 	/** Hands more files over. */

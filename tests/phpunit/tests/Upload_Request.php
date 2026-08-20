@@ -311,6 +311,102 @@ class Test_Upload_Request extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A browser that stops halfway leaves a file that arrived intact but was
+	 * never finished. Withholding it forever would lose the upload outright,
+	 * so it is given up on and handed over short of its generated sizes.
+	 *
+	 * @covers ::get_pending_attachment_ids
+	 * @covers ::get_ready_attachment_ids
+	 */
+	public function test_an_attachment_nothing_has_happened_to_is_given_up_on(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+
+		$this->assertSame( [ 11 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [], $request->get_ready_attachment_ids() );
+
+		$this->backdate_pending( $request, 11 );
+
+		$this->assertSame( [], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 11 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * A large photo can legitimately take a long time to work through, so the
+	 * measure is whether anything is still happening to it, not how long it
+	 * has been going.
+	 *
+	 * @covers ::touch_pending_attachment
+	 */
+	public function test_activity_keeps_a_long_running_file_from_being_given_up_on(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+		$this->backdate_pending( $request, 11 );
+
+		$this->assertSame( [], $request->get_pending_attachment_ids() );
+
+		// One more generated size arrives: the browser is still at it.
+		$request->touch_pending_attachment( 11 );
+
+		$this->assertSame( [ 11 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * @covers ::touch_pending_attachment
+	 */
+	public function test_touching_a_file_that_is_not_pending_does_nothing(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11 );
+		$request->touch_pending_attachment( 11 );
+
+		$this->assertSame( [], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 11 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * @covers ::get_stall_timeout
+	 */
+	public function test_the_stall_timeout_is_filterable_but_never_zero(): void {
+		$this->assertSame(
+			Upload_Request::DEFAULT_STALL_TIMEOUT,
+			Upload_Request::get_stall_timeout()
+		);
+
+		add_filter( 'upload_from_phone_stall_timeout', static fn () => -5 );
+
+		try {
+			$this->assertSame( 1, Upload_Request::get_stall_timeout() );
+		} finally {
+			remove_all_filters( 'upload_from_phone_stall_timeout' );
+		}
+	}
+
+	/**
+	 * Moves an attachment's last activity far enough back to count as stalled.
+	 *
+	 * Written straight to the meta rather than waiting out the real timeout,
+	 * which is measured in minutes.
+	 *
+	 * @param Upload_Request $request       The upload request.
+	 * @param int            $attachment_id Attachment ID.
+	 * @return void
+	 */
+	private function backdate_pending( Upload_Request $request, int $attachment_id ): void {
+		update_post_meta(
+			$request->get_post()->ID,
+			Upload_Request::META_PENDING_ATTACHMENTS,
+			[ $attachment_id => time() - Upload_Request::get_stall_timeout() - 1 ]
+		);
+	}
+
+	/**
 	 * A file that has arrived counts against the limit whether or not the
 	 * browser has finished working on it — otherwise a phone could send more
 	 * than the request allows simply by being quick about it.

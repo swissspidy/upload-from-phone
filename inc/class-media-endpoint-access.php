@@ -317,18 +317,29 @@ class Media_Endpoint_Access {
 	 */
 	public function revoke_access( $response, $handler, $request ) {
 		if (
-			'finalize' === $this->operation &&
 			$this->upload_request instanceof Upload_Request &&
 			! is_wp_error( $response ) &&
 			$request instanceof WP_REST_Request
 		) {
-			/*
-			 * Finalizing is the last thing the browser does to a file. Until
-			 * it lands, the attachment is missing the sizes and the scaled
-			 * file the editor is waiting for, so this is the moment it becomes
-			 * safe to hand over.
-			 */
-			$this->upload_request->mark_attachment_ready( (int) $request['id'] );
+			$attachment_id = (int) $request['id'];
+
+			if ( 'finalize' === $this->operation ) {
+				/*
+				 * Finalizing is the last thing the browser does to a file.
+				 * Until it lands, the attachment is missing the sizes and the
+				 * scaled file the editor is waiting for, so this is the moment
+				 * it becomes safe to hand over.
+				 */
+				$this->upload_request->mark_attachment_ready( $attachment_id );
+			} elseif ( 'sideload' === $this->operation ) {
+				/*
+				 * Each size that arrives says the browser is still at it. Long
+				 * jobs are common — a large photo on a modest phone can take a
+				 * while — so the file is judged by whether anything is still
+				 * happening to it, not by how long it has been going.
+				 */
+				$this->upload_request->touch_pending_attachment( $attachment_id );
+			}
 		}
 
 		$this->revoke();

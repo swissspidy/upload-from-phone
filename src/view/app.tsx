@@ -169,7 +169,7 @@ export function App( { uploader }: { uploader: Uploader } ) {
 
 	const inputRef = useRef< HTMLInputElement >( null );
 
-	const remaining = settings.maxFiles - uploader.uploadedCount;
+	const { remaining } = uploader;
 	const isFinished = remaining <= 0;
 
 	const { addFiles } = uploader;
