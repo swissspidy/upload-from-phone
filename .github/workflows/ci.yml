@@ -60,7 +60,7 @@ jobs:
         # flag unambiguous per row instead of relying on `include` merge rules.
         include:
           - php: '8.0'
-            wordpress: '7.1-RC4'
+            wordpress: '7.1'
             coverage: false
           - php: '8.1'
             wordpress: 'latest'

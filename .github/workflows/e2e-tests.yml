@@ -24,7 +24,7 @@ jobs:
             matrix:
                 # Matches "Requires at least" — 6.8 dropped after it surfaced a
                 # WP-core-internal bug unrelated to this plugin (see #17).
-                wordpress: ['7.1-RC4']
+                wordpress: ['7.1']
 
         steps:
             - name: Checkout
