@@ -116,7 +116,12 @@ test.describe( 'Upload from phone', () => {
 
 		await secondPage.goto( uploadUrl );
 
-		const dropzone = secondPage.locator( '#upload-from-phone-root' );
+		/*
+		 * The dropzone is the element React renders, not the container it
+		 * renders into: a drop dispatched on the container would never reach
+		 * the handler, since events bubble outwards.
+		 */
+		const dropzone = secondPage.locator( '.upload-from-phone__root' );
 
 		await dropFile( dropzone, TEST_IMAGE );
 

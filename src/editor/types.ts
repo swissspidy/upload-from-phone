@@ -16,9 +16,11 @@ export interface UploadRequest {
 	max_files: number;
 	/** Whether the upload request has received all the files it accepts. */
 	complete: boolean;
-	/** IDs of the attachments uploaded so far. */
+	/** Whether a file is still being processed in the browser. */
+	processing: boolean;
+	/** IDs of the attachments that are finished and ready to use. */
 	attachment_ids: number[];
-	/** The attachments uploaded so far. */
+	/** The attachments that are finished and ready to use. */
 	attachments: RestAttachment[];
 }
 

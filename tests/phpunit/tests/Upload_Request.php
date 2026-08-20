@@ -276,6 +276,58 @@ class Test_Upload_Request extends WP_UnitTestCase {
 	}
 
 	/**
+	 * @covers ::add_attachment
+	 * @covers ::get_pending_attachment_ids
+	 * @covers ::get_ready_attachment_ids
+	 */
+	public function test_attachments_are_ready_unless_they_are_recorded_as_pending(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11 );
+		$request->add_attachment( 22, true );
+
+		$this->assertSame( [ 11, 22 ], $request->get_attachment_ids() );
+		$this->assertSame( [ 22 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 11 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * @covers ::mark_attachment_ready
+	 */
+	public function test_marking_an_attachment_ready_hands_it_over(): void {
+		$request = Upload_Request::create( [] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+		$request->add_attachment( 22, true );
+
+		$this->assertSame( [], $request->get_ready_attachment_ids() );
+
+		$request->mark_attachment_ready( 11 );
+
+		$this->assertSame( [ 22 ], $request->get_pending_attachment_ids() );
+		$this->assertSame( [ 11 ], $request->get_ready_attachment_ids() );
+	}
+
+	/**
+	 * A file that has arrived counts against the limit whether or not the
+	 * browser has finished working on it — otherwise a phone could send more
+	 * than the request allows simply by being quick about it.
+	 *
+	 * @covers ::is_complete
+	 */
+	public function test_a_pending_attachment_still_counts_towards_the_limit(): void {
+		$request = Upload_Request::create( [ 'multiple' => false ] );
+		$this->assertInstanceOf( Upload_Request::class, $request );
+
+		$request->add_attachment( 11, true );
+
+		$this->assertTrue( $request->is_complete() );
+		$this->assertSame( [], $request->get_ready_attachment_ids() );
+	}
+
+	/**
 	 * @covers ::delete
 	 */
 	public function test_delete_fires_an_action_and_removes_the_post(): void {

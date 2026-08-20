@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'init', __NAMESPACE__ . '\register_post_type' );
 add_action( 'init', __NAMESPACE__ . '\register_assets' );
 add_action( 'rest_api_init', __NAMESPACE__ . '\register_rest_routes' );
+add_action( 'rest_api_init', __NAMESPACE__ . '\register_media_endpoint_access' );
 
 add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\enqueue_block_editor_assets' );
 

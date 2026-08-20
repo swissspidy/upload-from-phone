@@ -35,6 +35,7 @@ define( 'UPLOAD_FROM_PHONE_DIR', __DIR__ );
 
 require_once __DIR__ . '/inc/class-upload-request.php';
 require_once __DIR__ . '/inc/class-rest-upload-requests-controller.php';
+require_once __DIR__ . '/inc/class-media-endpoint-access.php';
 require_once __DIR__ . '/inc/functions.php';
 require_once __DIR__ . '/inc/default-filters.php';
 

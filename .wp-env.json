@@ -3,5 +3,8 @@
 	"config": {
 		"WP_DEBUG": true,
 		"SCRIPT_DEBUG": true
+	},
+	"mappings": {
+		"wp-content/plugins/no-client-side-processing": "./tests/e2e/plugins/no-client-side-processing"
 	}
 }
