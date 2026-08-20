@@ -420,29 +420,19 @@ class Media_Endpoint_Access {
 	/**
 	 * Reads the attachment ID off a request.
 	 *
-	 * Request parameters arrive as whatever was sent. The routes this class
-	 * grants access to only match `id` against digits, so anything else did
-	 * not come from one of them and is no attachment of this request's.
+	 * All three routes declare `id` as an integer, and core validates and
+	 * sanitizes request parameters against that schema before it reaches
+	 * either of the filters this class hooks. So the value has already been
+	 * checked and cast by the time this runs; `mixed` is only what reading a
+	 * request through ArrayAccess gives back.
 	 *
 	 * @param WP_REST_Request $request The request.
-	 * @return int Attachment ID, or 0 if the parameter was not one.
+	 * @return int Attachment ID, or 0 if the parameter was not a number.
 	 */
 	private function get_attachment_id( WP_REST_Request $request ): int {
 		$attachment_id = $request['id'];
 
-		if ( ! \is_int( $attachment_id ) && ! \is_string( $attachment_id ) ) {
-			return 0;
-		}
-
-		/*
-		 * Read the same way Upload_Request::get_attachment_ids() reads the
-		 * stored list, so that the two sides of the comparison in
-		 * check_operation() cannot disagree about what a value means. A number
-		 * too large for an int is no attachment's ID rather than PHP_INT_MAX.
-		 */
-		$attachment_id = filter_var( $attachment_id, FILTER_VALIDATE_INT );
-
-		return false !== $attachment_id && $attachment_id > 0 ? $attachment_id : 0;
+		return is_numeric( $attachment_id ) ? (int) $attachment_id : 0;
 	}
 
 	/**
