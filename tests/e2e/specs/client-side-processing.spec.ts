@@ -117,6 +117,32 @@ test.describe( 'Client-side media processing', () => {
 			.toBe( true );
 	} );
 
+	/**
+	 * The queue imports its image and video workers on demand, as script
+	 * modules. A bare specifier only resolves through an import map, which
+	 * WordPress prints from `wp_head()` — which this page deliberately does not
+	 * call. Without the map the page looks perfectly healthy right up until a
+	 * file needs vips, and then simply stops.
+	 */
+	test( "the upload page can resolve the queue's on-demand modules", async ( {
+		secondPage,
+		editor,
+	} ) => {
+		const { uploadUrl } = await requestUpload( editor );
+
+		await secondPage.goto( uploadUrl );
+
+		const importMap = await secondPage
+			.locator( 'script[type="importmap"]' )
+			.textContent();
+
+		expect( importMap ).toBeTruthy();
+
+		const imports = JSON.parse( importMap ?? '{}' ).imports ?? {};
+
+		expect( Object.keys( imports ) ).toContain( '@wordpress/vips/worker' );
+	} );
+
 	test( 'the upload page is told what the site does with images', async ( {
 		secondPage,
 		editor,

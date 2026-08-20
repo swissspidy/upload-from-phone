@@ -282,6 +282,10 @@ function send_cross_origin_isolation_headers(): void {
  * and the page has to behave the same way on every theme, so the plugin's own
  * handles are printed directly instead. Dependencies still resolve normally.
  *
+ * Skipping `wp_head()` does mean skipping everything else it prints, and one of
+ * those things is load-bearing here: the script module import map. See
+ * print_script_module_import_map() below.
+ *
  * @return void
  */
 function print_upload_page_assets(): void {
@@ -291,6 +295,37 @@ function print_upload_page_assets(): void {
 
 	wp_styles()->do_items( [ 'upload-from-phone-view' ] );
 	wp_scripts()->do_items( [ 'upload-from-phone-view' ] );
+
+	print_script_module_import_map();
+}
+
+/**
+ * Prints the import map for script modules the printed scripts pull in.
+ *
+ * The media processing queue does its heavy lifting in modules it imports on
+ * demand rather than up front — `@wordpress/vips/worker` for images and
+ * `@wordpress/video-conversion/worker` for video. Those are script modules, not
+ * classic scripts, and a bare specifier like `@wordpress/vips/worker` only
+ * resolves to a URL through an import map.
+ *
+ * WordPress prints that map from `wp_head()`, which this page does not call. So
+ * without this, everything loads and looks right, the queue accepts a file,
+ * takes it as far as needing vips, and the import never resolves: no error, no
+ * upload, a phone that sits there. It is printed after the scripts because the
+ * map is built by walking what `WP_Scripts` has queued, done, or still to do.
+ *
+ * Deliberately no `modulepreload` to go with it. The wasm these modules pull in
+ * is measured in megabytes, and fetching it while someone is still deciding
+ * which photo to send is not a trade this page should make on mobile data.
+ *
+ * @return void
+ */
+function print_script_module_import_map(): void {
+	if ( ! has_client_side_processing() ) {
+		return;
+	}
+
+	wp_script_modules()->print_import_map();
 }
 
 /**
