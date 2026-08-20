@@ -11,10 +11,15 @@
  * a stub file overrides the PHPDoc of a symbol that already exists, and
  * declares nothing that does not.
  *
- * Parameters are typed loosely on purpose. A stub file is read without the
- * WordPress stubs alongside it, so naming a class such as WP_REST_Response or
- * WP_User here would only resolve to an unknown one — and it is the return
- * types that these stubs exist for.
+ * Parameters are typed loosely on purpose. A stub file is analysed on its own,
+ * without the WordPress stubs alongside it, so naming a class here resolves to
+ * an unknown one unless that class is declared here as well. PHPStan's own
+ * advice for that is an empty shell — but an empty shell replaces the real
+ * class-level PHPDoc, and WP_User keeps `display_name` and its twenty
+ * siblings there as `@property` tags, so shelling it costs more type
+ * information than naming it buys. WP_REST_Response would drop its
+ * `extends WP_HTTP_Response` the same way. It is the return types these stubs
+ * exist for; the parameters stay as loose as they have to be.
  *
  * @package UploadFromPhone
  */
@@ -50,6 +55,10 @@ abstract class WP_REST_Controller {
 	 *
 	 * The response data with its links folded in, so still keyed by the field
 	 * names the controller that prepared it used.
+	 *
+	 * Core hands back what it was given, untouched, when that is not a
+	 * response at all. The sole caller checks for one before calling, so the
+	 * narrowed return above is the only case this plugin ever reaches.
 	 *
 	 * @param object $response Response object.
 	 * @return array<string, mixed> Response data, ready for insertion into collection data.

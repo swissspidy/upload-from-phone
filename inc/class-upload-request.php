@@ -417,10 +417,32 @@ final class Upload_Request {
 			return [];
 		}
 
-		// Anything that is not a number is dropped rather than cast: casting
-		// would turn it into attachment 0, which get_post() resolves to
-		// whatever post happens to be current.
-		return array_values( array_map( 'intval', array_filter( $ids, 'is_numeric' ) ) );
+		/*
+		 * Whole positive numbers only, rather than merely numeric ones. This
+		 * list is what decides which attachments a token may touch, and a cast
+		 * answers for values that are not IDs at all: `12.5` would land on
+		 * attachment 12, and anything unreadable on attachment 0, which
+		 * get_post() resolves to whatever post happens to be current. Nothing
+		 * here writes such a value — add_attachment() takes an int — so this
+		 * is about what another writer of the same meta key could leave behind.
+		 */
+		$attachment_ids = [];
+
+		foreach ( $ids as $id ) {
+			if ( is_int( $id ) ) {
+				$attachment_id = $id;
+			} elseif ( is_string( $id ) && ctype_digit( $id ) ) {
+				$attachment_id = (int) $id;
+			} else {
+				continue;
+			}
+
+			if ( $attachment_id > 0 ) {
+				$attachment_ids[] = $attachment_id;
+			}
+		}
+
+		return $attachment_ids;
 	}
 
 	/**
