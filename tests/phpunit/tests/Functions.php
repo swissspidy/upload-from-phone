@@ -13,6 +13,7 @@ use UploadFromPhone\Upload_Request;
 use WP_UnitTestCase;
 
 use function UploadFromPhone\delete_expired_requests;
+use function UploadFromPhone\enqueue_block_assets;
 use function UploadFromPhone\enqueue_block_editor_assets;
 use function UploadFromPhone\filter_cron_schedules;
 use function UploadFromPhone\filter_template_include;
@@ -487,17 +488,58 @@ class Test_Functions extends WP_UnitTestCase {
 		enqueue_block_editor_assets();
 
 		$this->assertFalse( wp_script_is( 'upload-from-phone-editor', 'enqueued' ) );
-		$this->assertFalse( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
 
 		wp_set_current_user( self::$admin_id );
 
 		enqueue_block_editor_assets();
 
 		$this->assertTrue( wp_script_is( 'upload-from-phone-editor', 'enqueued' ) );
-		$this->assertTrue( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
+
+		// The stylesheet has to reach the iframed editor canvas, which only
+		// styles enqueued on `enqueue_block_assets` do.
+		$this->assertFalse( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
 
 		wp_dequeue_script( 'upload-from-phone-editor' );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\enqueue_block_assets
+	 */
+	public function test_block_assets_require_upload_permission(): void {
+		register_assets();
+
+		set_current_screen( 'post.php' );
+
+		$subscriber_id = self::factory()->user->create( [ 'role' => 'subscriber' ] );
+		wp_set_current_user( $subscriber_id );
+
+		enqueue_block_assets();
+
+		$this->assertFalse( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
+
+		wp_set_current_user( self::$admin_id );
+
+		enqueue_block_assets();
+
+		$this->assertTrue( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
+		$this->assertFalse( wp_script_is( 'upload-from-phone-editor', 'enqueued' ) );
+
 		wp_dequeue_style( 'upload-from-phone-editor' );
+		set_current_screen( 'front' );
+	}
+
+	/**
+	 * @covers \UploadFromPhone\enqueue_block_assets
+	 */
+	public function test_block_assets_are_not_enqueued_on_the_front_end(): void {
+		register_assets();
+
+		set_current_screen( 'front' );
+		wp_set_current_user( self::$admin_id );
+
+		enqueue_block_assets();
+
+		$this->assertFalse( wp_style_is( 'upload-from-phone-editor', 'enqueued' ) );
 	}
 
 	/**
