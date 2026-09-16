@@ -19,6 +19,7 @@ add_action( 'rest_api_init', __NAMESPACE__ . '\register_rest_routes' );
 add_action( 'rest_api_init', __NAMESPACE__ . '\register_media_endpoint_access' );
 
 add_action( 'enqueue_block_editor_assets', __NAMESPACE__ . '\enqueue_block_editor_assets' );
+add_action( 'enqueue_block_assets', __NAMESPACE__ . '\enqueue_block_assets' );
 
 add_filter( 'template_include', __NAMESPACE__ . '\filter_template_include' );
 

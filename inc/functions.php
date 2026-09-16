@@ -155,7 +155,11 @@ function get_asset_meta( string $handle ): array {
 }
 
 /**
- * Enqueues the editor integration.
+ * Enqueues the editor integration's script.
+ *
+ * The script hooks into the block editor itself, so it belongs in the parent
+ * document only. Its stylesheet is a different story, see
+ * {@see enqueue_block_assets()}.
  *
  * @return void
  */
@@ -165,6 +169,28 @@ function enqueue_block_editor_assets(): void {
 	}
 
 	wp_enqueue_script( 'upload-from-phone-editor' );
+}
+
+/**
+ * Enqueues the editor integration's stylesheet.
+ *
+ * The panel with the QR code takes the place of a block's media placeholder,
+ * which means it renders inside the editor canvas — an iframe with a document
+ * of its own. Styles enqueued on `enqueue_block_editor_assets` only ever reach
+ * the parent document, so they never apply there. WordPress carries styles
+ * enqueued on `enqueue_block_assets` into both, which is why the stylesheet
+ * is enqueued here and not next to the script.
+ *
+ * `enqueue_block_assets` fires on the front end too, where there is no panel
+ * to style, hence the admin check.
+ *
+ * @return void
+ */
+function enqueue_block_assets(): void {
+	if ( ! is_admin() || ! current_user_can( 'upload_files' ) ) {
+		return;
+	}
+
 	wp_enqueue_style( 'upload-from-phone-editor' );
 }
 
