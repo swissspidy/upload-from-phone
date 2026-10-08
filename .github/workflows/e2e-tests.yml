@@ -64,7 +64,7 @@ jobs:
                   COLLECT_COVERAGE: true
 
             - name: Upload code coverage report
-              uses: codecov/codecov-action@v7.0.0
+              uses: codecov/codecov-action@v7.1.1
               # The reporter writes the coverage report before failed tests fail
               # the step above, so a red run shouldn't lose it — only skip when
               # coverage genuinely wasn't collected.
