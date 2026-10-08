@@ -59,7 +59,7 @@
 		"@wordpress/notices": "^5.53.0",
 		"@wordpress/scripts": "^35.0.0",
 		"@wordpress/upload-media": "^0.40.0",
-		"monocart-reporter": "^2.12.6",
+		"monocart-reporter": "^2.13.1",
 		"typescript": "~6.0.3"
 	}
 }
